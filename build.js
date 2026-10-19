@@ -1,5 +1,6 @@
-// Gera index.html autocontido (CSS e JS embutidos) a partir de src/.
+// Gera index.html autocontido (CSS e JS embutidos) e sw.js a partir de src/.
 // Assim o app abre com dois cliques, mesmo sem a pasta src/ ao lado.
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,12 +11,22 @@ function build() {
   return src('template.html')
     .replace('<link rel="stylesheet" href="src/styles.css">', () => `<style>\n${src('styles.css')}</style>`)
     .replace('<script src="src/game.js"></script>', () => `<script>\n${safe(src('game.js'))}</script>`)
+    .replace('<script src="src/charts.js"></script>', () => `<script>\n${safe(src('charts.js'))}</script>`)
     .replace('<script src="src/app.js"></script>', () => `<script>\n${safe(src('app.js'))}</script>`);
 }
 
-module.exports = build;
+// O service worker muda de versão sempre que o app muda, para o celular baixar a atualização.
+function buildSw(html) {
+  const manifest = fs.readFileSync(path.join(__dirname, 'manifest.webmanifest'), 'utf8');
+  const version = crypto.createHash('sha256').update(html).update(manifest).digest('hex').slice(0, 10);
+  return src('sw.js').replace('__VERSION__', version);
+}
+
+module.exports = { build, buildSw };
 
 if (require.main === module) {
-  fs.writeFileSync(path.join(__dirname, 'index.html'), build());
-  console.log('index.html gerado.');
+  const html = build();
+  fs.writeFileSync(path.join(__dirname, 'index.html'), html);
+  fs.writeFileSync(path.join(__dirname, 'sw.js'), buildSw(html));
+  console.log('index.html e sw.js gerados.');
 }

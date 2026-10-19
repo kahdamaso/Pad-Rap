@@ -10,27 +10,50 @@ Transforme sua rotina em um RPG. Cada hábito vira missão, cada dia vira XP.
    - **🔁 Hábitos** – toque quantas vezes quiser. Bons (+) dão XP; ruins (−) tiram vida.
    - **📌 Tarefas** – missões únicas.
 3. Cada missão treina um atributo: 💪 Força, 📚 Inteligência, 🧘 Sabedoria, 🎭 Carisma, 🍎 Vitalidade.
-4. Gaste o ouro na **Loja** com recompensas reais que você mesmo cria (ou numa Poção de Vida).
-5. Desbloqueie **conquistas** e acompanhe tudo no **Diário de Aventura**.
+4. **👺 Chefe semanal** – toda segunda aparece um chefe. Cada missão causa nele dano igual ao XP ganho; hábitos ruins o curam. Vença até domingo para ganhar XP e ouro extras. Se ele sobreviver, foge e acerta um golpe. A vida do chefe depende das diárias agendadas na semana.
+5. **🎒 Equipamento** – subir de nível libera itens em 5 espaços (arma, escudo, elmo, amuleto e companheiro), do Comum ao Lendário. Eles aparecem no seu avatar e dão bônus: dano no chefe, defesa, XP, ouro e cura ao descansar.
+6. **🛒 Loja** – gaste o ouro com recompensas reais que você mesmo cria (ou numa Poção de Vida).
+7. **📈 Evolução** – gráficos de missões por dia, XP ao longo do tempo, diárias cumpridas por semana e atributos.
+8. Desbloqueie **conquistas** e acompanhe tudo no **Diário de Aventura**.
 
-Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metade do ouro. Subir de nível restaura a vida; cada noite de descanso recupera 10%.
+Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metade do ouro. Subir de nível restaura a vida; cada noite de descanso recupera 10% (mais com um companheiro).
 
-## Rodando
+## Rodando no computador
 
-Não precisa instalar nada: dê dois cliques no `index.html`. Ele é um arquivo único, com tudo embutido, então funciona mesmo sozinho (dá para copiar só ele para outro lugar).
+Dê dois cliques no `index.html`. Ele é um arquivo único, com tudo embutido, então funciona mesmo sozinho.
 
 > Baixou o ZIP do GitHub? Extraia antes de abrir. Use uma versão atual do Chrome, Edge ou Firefox.
 
-Se preferir um servidor local: `npm start` (http://localhost:5173).
+O progresso fica salvo no navegador. Use **Herói → Exportar/Importar** para fazer backup ou levar para outro dispositivo.
 
-O progresso fica salvo no `localStorage` do navegador. Use **Herói → Exportar/Importar** para fazer backup ou levar para outro dispositivo.
+## Instalando no celular (funciona sem internet)
 
-## Estrutura
+Para instalar, o app precisa estar num endereço da internet. O GitHub Pages faz isso de graça:
 
-O código-fonte fica em `src/`; o `index.html` é gerado a partir dele com `npm run build` (rode depois de editar qualquer arquivo de `src/` — o `npm test` avisa se esquecer).
+1. No GitHub, abra o repositório → **Settings** → **Pages**.
+2. Em **Build and deployment → Source**, escolha **Deploy from a branch**.
+3. Selecione a branch do app e a pasta **/ (root)**. Clique em **Save**.
+4. Em um ou dois minutos o app fica disponível em `https://<seu-usuario>.github.io/Pad-Rap/`.
+
+No celular, abra esse endereço:
+
+- **Android (Chrome):** toque em **Instalar app** (aparece no menu ⋮ ou na aba ⚙️ Herói do app).
+- **iPhone (Safari):** toque em **Compartilhar** → **Adicionar à Tela de Início**.
+
+Depois de aberto uma vez, o app funciona offline. Quando houver internet, ele baixa as atualizações sozinho.
+
+> O progresso do celular é separado do progresso do computador. Para levar seu herói, use **Exportar** num aparelho e **Importar** no outro.
+
+## Desenvolvimento
+
+O código-fonte fica em `src/`. O `index.html` e o `sw.js` são gerados a partir dele com `npm run build` (rode depois de editar qualquer arquivo de `src/`; o `npm test` avisa se esquecer).
 
 - `src/template.html` – esqueleto da página
 - `src/game.js` – regras do jogo (funções puras, sem DOM)
+- `src/charts.js` – gráficos em SVG
 - `src/app.js` – interface
 - `src/styles.css` – visual (tema claro e escuro automático)
-- `test/` – testes das regras: `npm test`
+- `src/sw.js` – service worker (modo offline)
+- `manifest.webmanifest`, `icons/` – app instalável
+- `test/` – testes: `npm test`
+- Servidor local: `npm start` (http://localhost:5173)

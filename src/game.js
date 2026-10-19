@@ -7,9 +7,11 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const MAX_CATCHUP_DAYS = 7;
   const MAX_LOG = 150;
+  const MAX_HISTORY_DAYS = 400;
+  const REST_HEAL = 0.1;
 
   const ATTRIBUTES = {
     str: { name: 'Força', icon: '💪', hint: 'Exercício, esforço físico' },
@@ -38,6 +40,115 @@
   const STREAK_BONUS_PER_DAY = 0.1;
   const STREAK_BONUS_CAP = 10;
 
+  // ---------- Equipamentos ----------
+  // Cada espaço tem um tipo de bônus; os itens são liberados por nível.
+
+  const SLOTS = {
+    weapon: { name: 'Arma', effect: 'bossDmg', desc: (v) => `+${v}% de dano no chefe` },
+    shield: { name: 'Escudo', effect: 'defense', desc: (v) => `−${v}% de dano recebido` },
+    helmet: { name: 'Elmo', effect: 'xp', desc: (v) => `+${v}% de XP` },
+    amulet: { name: 'Amuleto', effect: 'gold', desc: (v) => `+${v}% de ouro` },
+    pet: { name: 'Companheiro', effect: 'rest', desc: (v) => `+${v}% de vida ao descansar` },
+  };
+
+  const TIERS = ['Comum', 'Incomum', 'Raro', 'Épico', 'Lendário'];
+
+  const EQUIPMENT = [
+    { id: 'graveto', slot: 'weapon', icon: '🪵', name: 'Graveto Robusto', level: 1, value: 0 },
+    { id: 'adaga', slot: 'weapon', icon: '🗡️', name: 'Adaga de Bronze', level: 3, value: 10 },
+    { id: 'arco', slot: 'weapon', icon: '🏹', name: 'Arco Élfico', level: 6, value: 20 },
+    { id: 'espada', slot: 'weapon', icon: '⚔️', name: 'Espada Rúnica', level: 10, value: 30 },
+    { id: 'tridente', slot: 'weapon', icon: '🔱', name: 'Tridente dos Mares', level: 15, value: 50 },
+
+    { id: 'panela', slot: 'shield', icon: '🍳', name: 'Tampa de Panela', level: 2, value: 5 },
+    { id: 'carvalho', slot: 'shield', icon: '🛡️', name: 'Escudo de Carvalho', level: 5, value: 10 },
+    { id: 'aco', slot: 'shield', icon: '🔰', name: 'Escudo de Aço', level: 9, value: 15 },
+    { id: 'casco', slot: 'shield', icon: '🐢', name: 'Casco Ancestral', level: 14, value: 25 },
+
+    { id: 'bone', slot: 'helmet', icon: '🧢', name: 'Boné de Viagem', level: 1, value: 0 },
+    { id: 'chapeu', slot: 'helmet', icon: '🎩', name: 'Chapéu de Aventureiro', level: 4, value: 5 },
+    { id: 'elmo', slot: 'helmet', icon: '⛑️', name: 'Elmo de Ferro', level: 8, value: 10 },
+    { id: 'coroa', slot: 'helmet', icon: '👑', name: 'Coroa do Reino', level: 12, value: 20 },
+
+    { id: 'contas', slot: 'amulet', icon: '📿', name: 'Colar de Contas', level: 3, value: 5 },
+    { id: 'anel', slot: 'amulet', icon: '💍', name: 'Anel de Prata', level: 7, value: 10 },
+    { id: 'olho', slot: 'amulet', icon: '🧿', name: 'Olho Místico', level: 11, value: 15 },
+    { id: 'joia', slot: 'amulet', icon: '💎', name: 'Joia do Dragão', level: 16, value: 25 },
+
+    { id: 'rato', slot: 'pet', icon: '🐀', name: 'Ratinho Corajoso', level: 2, value: 5 },
+    { id: 'gato', slot: 'pet', icon: '🐈', name: 'Gato Malhado', level: 5, value: 10 },
+    { id: 'coruja', slot: 'pet', icon: '🦉', name: 'Coruja Sábia', level: 9, value: 15 },
+    { id: 'lobo', slot: 'pet', icon: '🐺', name: 'Lobo Fiel', level: 13, value: 20 },
+    { id: 'dragao', slot: 'pet', icon: '🐉', name: 'Dragãozinho', level: 20, value: 30 },
+  ];
+
+  // Raridade = posição do item dentro do seu espaço; o último é sempre lendário.
+  EQUIPMENT.forEach((item) => {
+    const same = EQUIPMENT.filter((i) => i.slot === item.slot);
+    const pos = same.indexOf(item);
+    item.tier = pos === same.length - 1 ? TIERS.length - 1 : Math.min(pos, TIERS.length - 2);
+  });
+
+  function findItem(id) {
+    return EQUIPMENT.find((i) => i.id === id) || null;
+  }
+
+  function isUnlocked(state, item) {
+    return heroLevel(state) >= item.level;
+  }
+
+  function bestUnlocked(state, slot) {
+    const items = EQUIPMENT.filter((i) => i.slot === slot && isUnlocked(state, i));
+    return items.length ? items[items.length - 1] : null;
+  }
+
+  function equippedItem(state, slot) {
+    const item = findItem(state.hero.equipment[slot]);
+    return item && item.slot === slot && isUnlocked(state, item) ? item : null;
+  }
+
+  function bonuses(state) {
+    const b = { bossDmg: 0, defense: 0, xp: 0, gold: 0, rest: 0 };
+    Object.keys(SLOTS).forEach((slot) => {
+      const item = equippedItem(state, slot);
+      if (item) b[SLOTS[slot].effect] += item.value / 100;
+    });
+    return b;
+  }
+
+  function equip(state, itemId) {
+    const item = findItem(itemId);
+    if (!item || !isUnlocked(state, item)) return false;
+    state.hero.equipment[item.slot] = item.id;
+    return true;
+  }
+
+  // Equipa automaticamente o que acabou de ser liberado (é sempre melhor).
+  function equipNewUnlocks(state, fromLevel, toLevel) {
+    const items = EQUIPMENT.filter((i) => i.level > fromLevel && i.level <= toLevel);
+    items.forEach((i) => (state.hero.equipment[i.slot] = i.id));
+    return items;
+  }
+
+  // ---------- Chefes semanais ----------
+
+  const BOSSES = [
+    { icon: '👺', name: 'Goblin da Procrastinação' },
+    { icon: '🐙', name: 'Kraken das Notificações' },
+    { icon: '🧌', name: 'Troll da Bagunça' },
+    { icon: '🧛', name: 'Vampiro da Madrugada' },
+    { icon: '🗿', name: 'Golem do Sedentarismo' },
+    { icon: '🐍', name: 'Hidra das Distrações' },
+    { icon: '🧟', name: 'Zumbi do Cansaço' },
+    { icon: '🐂', name: 'Minotauro do Estresse' },
+    { icon: '👻', name: 'Espectro da Desculpa' },
+    { icon: '🐲', name: 'Dragão da Preguiça' },
+  ];
+
+  const BOSS_MIN_HP = 100;
+  const BOSS_HP_SHARE = 0.8; // fração do XP-base da semana necessária para vencer
+  const BOSS_ESCAPE_DAMAGE = 15;
+
   // ---------- Datas (chaves locais AAAA-MM-DD) ----------
 
   function pad(n) {
@@ -62,6 +173,11 @@
 
   function dayOfWeek(key) {
     return parseKey(key).getDay();
+  }
+
+  // Semanas começam na segunda-feira.
+  function weekStart(key) {
+    return addDays(key, -((dayOfWeek(key) + 6) % 7));
   }
 
   // ---------- Níveis ----------
@@ -103,26 +219,60 @@
     return Date.now().toString(36) + idCounter.toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
+  function defaultEquipment() {
+    const eq = {};
+    Object.keys(SLOTS).forEach((slot) => {
+      const first = EQUIPMENT.find((i) => i.slot === slot && i.level <= 1);
+      eq[slot] = first ? first.id : null;
+    });
+    return eq;
+  }
+
   function createState(name, cls, today) {
     const key = today || todayKey();
     const attrs = {};
     Object.keys(ATTRIBUTES).forEach((a) => (attrs[a] = 0));
     const state = {
       version: VERSION,
-      hero: { name: name || 'Aventureiro', cls: CLASSES[cls] ? cls : 'guerreiro', xp: 0, hp: maxHp(1), gold: 0, attrs },
+      hero: {
+        name: name || 'Aventureiro',
+        cls: CLASSES[cls] ? cls : 'guerreiro',
+        xp: 0,
+        hp: maxHp(1),
+        gold: 0,
+        attrs,
+        equipment: defaultEquipment(),
+      },
       quests: [],
       rewards: [
         { id: uid(), title: 'Poção de Vida', cost: 25, heal: 20, builtin: true },
         { id: uid(), title: 'Um episódio de série', cost: 50 },
         { id: uid(), title: 'Sobremesa favorita', cost: 80 },
       ],
+      boss: null,
+      history: {},
       achievements: {},
       log: [],
-      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0 },
+      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0, bossesDefeated: 0, bossesSeen: 0 },
       lastProcessed: key,
       createdAt: key,
     };
     addLog(state, '🌅', `${state.hero.name}, o ${CLASSES[state.hero.cls].name}, inicia sua jornada!`);
+    return state;
+  }
+
+  // Atualiza progresso salvo em versões anteriores sem perder nada.
+  function migrate(state) {
+    if (!state || typeof state !== 'object') return state;
+    if (state.version === 1) {
+      state.hero.equipment = defaultEquipment();
+      equipNewUnlocks(state, 1, heroLevel(state));
+      state.boss = null;
+      state.history = {};
+      state.stats.bossesDefeated = 0;
+      state.stats.bossesSeen = 0;
+      state.version = 2;
+    }
     return state;
   }
 
@@ -180,38 +330,71 @@
     return quest.countDate === key ? quest.count : 0;
   }
 
+  // ---------- Histórico (para os gráficos) ----------
+
+  function historyDay(state, key) {
+    if (!state.history[key]) state.history[key] = { done: 0 };
+    return state.history[key];
+  }
+
+  function recordDay(state, key) {
+    const day = historyDay(state, key || todayKey());
+    day.xp = state.hero.xp;
+    day.gold = state.hero.gold;
+    const keys = Object.keys(state.history);
+    if (keys.length > MAX_HISTORY_DAYS) {
+      keys.sort().slice(0, keys.length - MAX_HISTORY_DAYS).forEach((k) => delete state.history[k]);
+    }
+  }
+
+  function dailyTotals(state, key) {
+    let due = 0;
+    let done = 0;
+    state.quests.forEach((q) => {
+      if (q.type !== 'daily' || q.createdAt > key || !isScheduled(q, key)) return;
+      due++;
+      if (isDoneOn(q, key)) done++;
+    });
+    return { due, done };
+  }
+
   // ---------- Recompensas e dano ----------
 
   function computeReward(state, quest) {
     const diff = DIFFICULTY[quest.difficulty];
+    const b = bonuses(state);
     const streak = quest.type === 'daily' ? Math.min(quest.streak, STREAK_BONUS_CAP) : 0;
     const streakMult = 1 + streak * STREAK_BONUS_PER_DAY;
     const classMult = CLASSES[state.hero.cls].attr === quest.attr ? 1 + CLASS_BONUS : 1;
     return {
-      xp: Math.round(diff.xp * streakMult * classMult),
-      gold: Math.round(diff.gold * streakMult),
+      xp: Math.round(diff.xp * streakMult * classMult * (1 + b.xp)),
+      gold: Math.round(diff.gold * streakMult * (1 + b.gold)),
     };
   }
 
   function grant(state, attr, xp, gold) {
     const hero = state.hero;
     const beforeLevel = heroLevel(state);
-    const beforeAttr = levelFromXp(hero.attrs[attr], ATTR_BASE);
+    const beforeAttr = attr ? levelFromXp(hero.attrs[attr], ATTR_BASE) : 0;
     hero.xp += xp;
-    hero.attrs[attr] += xp;
+    if (attr) hero.attrs[attr] += xp;
     hero.gold += gold;
     state.stats.goldEarned += gold;
     const level = heroLevel(state);
-    const attrLevel = levelFromXp(hero.attrs[attr], ATTR_BASE);
-    const events = { xp, gold, levelUp: null, attrUp: null };
+    const events = { xp, gold, levelUp: null, attrUp: null, newItems: [] };
     if (level > beforeLevel) {
       hero.hp = maxHp(level);
       events.levelUp = level;
       addLog(state, '⭐', `Subiu para o nível ${level}! Vida restaurada.`);
+      events.newItems = equipNewUnlocks(state, beforeLevel, level);
+      events.newItems.forEach((i) => addLog(state, i.icon, `Novo equipamento: ${i.name}!`));
     }
-    if (attrLevel > beforeAttr) {
-      events.attrUp = { attr, level: attrLevel };
-      addLog(state, ATTRIBUTES[attr].icon, `${ATTRIBUTES[attr].name} chegou ao nível ${attrLevel}.`);
+    if (attr) {
+      const attrLevel = levelFromXp(hero.attrs[attr], ATTR_BASE);
+      if (attrLevel > beforeAttr) {
+        events.attrUp = { attr, level: attrLevel };
+        addLog(state, ATTRIBUTES[attr].icon, `${ATTRIBUTES[attr].name} chegou ao nível ${attrLevel}.`);
+      }
     }
     return events;
   }
@@ -225,12 +408,13 @@
     hero.hp = Math.min(hero.hp, maxHp(heroLevel(state)));
   }
 
-  // Aplica dano; ao chegar a 0 de vida o herói é derrotado:
+  // Aplica dano (reduzido pelo escudo); ao chegar a 0 de vida o herói é derrotado:
   // perde o progresso do nível atual e metade do ouro, e volta com vida cheia.
   function damage(state, amount, reason) {
     const hero = state.hero;
-    hero.hp -= amount;
-    if (hero.hp > 0) return { damage: amount, defeated: false };
+    const taken = Math.max(1, Math.round(amount * (1 - bonuses(state).defense)));
+    hero.hp -= taken;
+    if (hero.hp > 0) return { damage: taken, defeated: false };
     const level = heroLevel(state);
     const lostGold = Math.floor(hero.gold / 2);
     hero.xp = xpForLevel(level);
@@ -238,7 +422,7 @@
     hero.hp = maxHp(level);
     state.stats.defeats++;
     addLog(state, '💀', `Derrotado${reason ? ` por ${reason}` : ''}! Perdeu o progresso do nível e ${lostGold} de ouro.`);
-    return { damage: amount, defeated: true, lostGold };
+    return { damage: taken, defeated: true, lostGold };
   }
 
   function heal(state, amount) {
@@ -249,7 +433,87 @@
     return hero.hp - before;
   }
 
+  // ---------- Chefe ----------
+
+  function bossHpFor(state, today) {
+    const start = weekStart(today);
+    let expected = 0;
+    for (let i = 0; i < 7; i++) {
+      const day = addDays(start, i);
+      if (day < today) continue;
+      state.quests.forEach((q) => {
+        if (q.type === 'daily' && isScheduled(q, day)) expected += DIFFICULTY[q.difficulty].xp;
+      });
+    }
+    return Math.max(BOSS_MIN_HP, Math.round((expected * BOSS_HP_SHARE) / 10) * 10);
+  }
+
+  function bossReward(state) {
+    const level = heroLevel(state);
+    return { xp: 40 + level * 10, gold: 25 + level * 5 };
+  }
+
+  // Garante que existe um chefe para a semana atual; o da semana passada,
+  // se não foi derrotado, foge e dá um último golpe.
+  function ensureBoss(state, today) {
+    const key = today || todayKey();
+    const week = weekStart(key);
+    const result = { escaped: null, spawned: null };
+    const old = state.boss;
+    if (old && old.week === week) return result;
+    if (old && !old.defeated) {
+      const dmg = Math.ceil((BOSS_ESCAPE_DAMAGE * old.hp) / old.maxHp);
+      const hit = damage(state, dmg, old.name);
+      result.escaped = { name: old.name, icon: old.icon, damage: hit.damage, defeated: hit.defeated };
+      addLog(state, old.icon, `${old.name} escapou e acertou um último golpe (−${hit.damage} vida).`);
+    }
+    const base = BOSSES[state.stats.bossesSeen % BOSSES.length];
+    const hp = bossHpFor(state, key);
+    state.stats.bossesSeen++;
+    state.boss = { week, icon: base.icon, name: base.name, maxHp: hp, hp, defeated: false };
+    result.spawned = state.boss;
+    addLog(state, base.icon, `${base.name} apareceu! Cumpra suas missões da semana para derrotá-lo.`);
+    return result;
+  }
+
+  function hitBoss(state, xp) {
+    const boss = state.boss;
+    if (!boss || boss.defeated) return null;
+    const dmg = Math.max(1, Math.round(xp * (1 + bonuses(state).bossDmg)));
+    boss.hp = Math.max(0, boss.hp - dmg);
+    const hit = { damage: dmg, week: boss.week, defeated: false };
+    if (boss.hp === 0) {
+      boss.defeated = true;
+      state.stats.bossesDefeated++;
+      const reward = bossReward(state);
+      addLog(state, '🏅', `${boss.name} foi derrotado! +${reward.xp} XP, +${reward.gold} ouro.`);
+      hit.defeated = true;
+      hit.reward = reward;
+      hit.events = grant(state, null, reward.xp, reward.gold);
+    }
+    return hit;
+  }
+
+  function healBoss(state, amount) {
+    const boss = state.boss;
+    if (!boss || boss.defeated) return 0;
+    const before = boss.hp;
+    boss.hp = Math.min(boss.maxHp, boss.hp + amount);
+    return boss.hp - before;
+  }
+
   // ---------- Ações ----------
+
+  function rewardResult(state, events, boss) {
+    const result = { type: 'reward', ...events, boss };
+    if (boss && boss.events) {
+      // Subidas de nível causadas pelo prêmio do chefe também contam.
+      result.levelUp = boss.events.levelUp || result.levelUp;
+      result.newItems = (result.newItems || []).concat(boss.events.newItems);
+    }
+    result.achievements = checkAchievements(state);
+    return result;
+  }
 
   function completeQuest(state, id, today) {
     const key = today || todayKey();
@@ -265,14 +529,16 @@
       if (quest.polarity === 'bad') {
         const dmg = DIFFICULTY[quest.difficulty].damage;
         const result = damage(state, dmg, quest.title);
-        if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${dmg} de vida.`);
-        return { type: 'damage', ...result, achievements: checkAchievements(state) };
+        const bossHealed = healBoss(state, dmg * 2);
+        if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${result.damage} de vida.`);
+        return { type: 'damage', ...result, bossHealed, achievements: checkAchievements(state) };
       }
       const reward = computeReward(state, quest);
       const events = grant(state, quest.attr, reward.xp, reward.gold);
       state.stats.completed++;
+      historyDay(state, key).done++;
       addLog(state, '✨', `"${quest.title}": +${reward.xp} XP, +${reward.gold} ouro.`);
-      return { type: 'reward', ...events, achievements: checkAchievements(state) };
+      return rewardResult(state, events, hitBoss(state, reward.xp));
     }
 
     if (isDoneOn(quest, key)) return null;
@@ -287,12 +553,14 @@
       quest.doneAt = key;
     }
     const reward = computeReward(state, quest);
-    quest.lastGrant = { key, xp: reward.xp, gold: reward.gold };
     const events = grant(state, quest.attr, reward.xp, reward.gold);
     state.stats.completed++;
+    historyDay(state, key).done++;
     const streakText = quest.type === 'daily' && quest.streak > 1 ? ` (sequência de ${quest.streak})` : '';
     addLog(state, '✅', `Missão "${quest.title}" concluída${streakText}: +${reward.xp} XP, +${reward.gold} ouro.`);
-    return { type: 'reward', ...events, achievements: checkAchievements(state) };
+    const boss = hitBoss(state, reward.xp);
+    quest.lastGrant = { key, xp: reward.xp, gold: reward.gold, boss: boss && !boss.defeated ? { week: boss.week, damage: boss.damage } : null };
+    return rewardResult(state, events, boss);
   }
 
   function undoQuest(state, id, today) {
@@ -308,7 +576,11 @@
       quest.done = false;
       delete quest.doneAt;
     }
-    if (g) revoke(state, quest.attr, g.xp, g.gold);
+    if (g) {
+      revoke(state, quest.attr, g.xp, g.gold);
+      if (g.boss && state.boss && state.boss.week === g.boss.week) healBoss(state, g.boss.damage);
+      if (state.history[g.key]) state.history[g.key].done = Math.max(0, state.history[g.key].done - 1);
+    }
     delete quest.lastGrant;
     state.stats.completed = Math.max(0, state.stats.completed - 1);
     addLog(state, '↩️', `Desfez "${quest.title}".`);
@@ -340,39 +612,46 @@
 
   // Processa os dias que passaram desde a última abertura: diárias não feitas
   // causam dano e zeram a sequência; cada noite de descanso recupera um pouco de vida.
+  // Também troca o chefe quando começa uma semana nova.
   function processRollover(state, today) {
     const key = today || todayKey();
-    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0 };
-    if (!state.lastProcessed || state.lastProcessed >= key) {
-      if (!state.lastProcessed) state.lastProcessed = key;
-      return summary;
-    }
-    let day = state.lastProcessed;
-    const earliest = addDays(key, -MAX_CATCHUP_DAYS);
-    if (day < earliest) day = earliest;
-    for (; day < key; day = addDays(day, 1)) {
-      summary.days++;
-      state.quests.forEach((q) => {
-        if (q.type !== 'daily' || q.createdAt > day || !isScheduled(q, day) || isDoneOn(q, day)) return;
-        q.streak = 0;
-        const dmg = DIFFICULTY[q.difficulty].damage;
-        summary.missed.push({ title: q.title, day, damage: dmg });
-        summary.damage += dmg;
-        const result = damage(state, dmg, `"${q.title}" esquecida`);
-        if (result.defeated) summary.defeated = true;
-      });
-      summary.healed += heal(state, Math.ceil(maxHp(heroLevel(state)) * 0.1));
-    }
-    state.quests.forEach((q) => {
-      if (q.type === 'habit' && q.countDate !== key) {
-        q.count = 0;
-        q.countDate = key;
+    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0, boss: null };
+    if (!state.lastProcessed) state.lastProcessed = key;
+    if (state.lastProcessed < key) {
+      let day = state.lastProcessed;
+      const earliest = addDays(key, -MAX_CATCHUP_DAYS);
+      if (day < earliest) day = earliest;
+      for (; day < key; day = addDays(day, 1)) {
+        summary.days++;
+        const totals = dailyTotals(state, day);
+        const entry = historyDay(state, day);
+        entry.due = totals.due;
+        entry.dailyDone = totals.done;
+        state.quests.forEach((q) => {
+          if (q.type !== 'daily' || q.createdAt > day || !isScheduled(q, day) || isDoneOn(q, day)) return;
+          q.streak = 0;
+          const result = damage(state, DIFFICULTY[q.difficulty].damage, `"${q.title}" esquecida`);
+          summary.missed.push({ title: q.title, day, damage: result.damage });
+          summary.damage += result.damage;
+          if (result.defeated) summary.defeated = true;
+        });
+        const restRate = REST_HEAL + bonuses(state).rest;
+        summary.healed += heal(state, Math.ceil(maxHp(heroLevel(state)) * restRate));
       }
-    });
-    if (summary.missed.length) {
-      addLog(state, '⚔️', `Missões perdidas enquanto esteve fora: ${summary.missed.length} (−${summary.damage} vida).`);
+      state.quests.forEach((q) => {
+        if (q.type === 'habit' && q.countDate !== key) {
+          q.count = 0;
+          q.countDate = key;
+        }
+      });
+      if (summary.missed.length) {
+        addLog(state, '⚔️', `Missões perdidas enquanto esteve fora: ${summary.missed.length} (−${summary.damage} vida).`);
+      }
+      state.lastProcessed = key;
     }
-    state.lastProcessed = key;
+    summary.boss = ensureBoss(state, key);
+    if (summary.boss.escaped && summary.boss.escaped.defeated) summary.defeated = true;
+    recordDay(state, key);
     return summary;
   }
 
@@ -391,6 +670,9 @@
     { id: 'first-reward', icon: '🎁', name: 'Merecido', desc: 'Compre uma recompensa na loja.', check: (s) => s.stats.rewardsBought >= 1 },
     { id: 'balanced', icon: '⚖️', name: 'Equilíbrio', desc: 'Todos os atributos no nível 3.', check: (s) => Object.values(s.hero.attrs).every((x) => levelFromXp(x, ATTR_BASE) >= 3) },
     { id: 'defeat', icon: '🪦', name: 'Renascido', desc: 'Seja derrotado e continue lutando.', check: (s) => s.stats.defeats >= 1 },
+    { id: 'boss-1', icon: '🏅', name: 'Caçador de Chefes', desc: 'Derrote seu primeiro chefe semanal.', check: (s) => s.stats.bossesDefeated >= 1 },
+    { id: 'boss-10', icon: '🎖️', name: 'Flagelo dos Monstros', desc: 'Derrote 10 chefes semanais.', check: (s) => s.stats.bossesDefeated >= 10 },
+    { id: 'legendary', icon: '✴️', name: 'Equipamento Lendário', desc: 'Equipe um item lendário.', check: (s) => Object.keys(SLOTS).some((slot) => { const i = equippedItem(s, slot); return i && i.tier === TIERS.length - 1; }) },
   ];
 
   function checkAchievements(state) {
@@ -413,8 +695,10 @@
       state.version === VERSION &&
       state.hero &&
       typeof state.hero.xp === 'number' &&
+      state.hero.equipment &&
       Array.isArray(state.quests) &&
-      Array.isArray(state.rewards)
+      Array.isArray(state.rewards) &&
+      state.history
     );
   }
 
@@ -425,15 +709,21 @@
     DIFFICULTY,
     ACHIEVEMENTS,
     ATTR_BASE,
+    SLOTS,
+    TIERS,
+    EQUIPMENT,
+    BOSSES,
     todayKey,
     addDays,
     dayOfWeek,
+    weekStart,
     xpForLevel,
     levelFromXp,
     levelProgress,
     maxHp,
     heroLevel,
     createState,
+    migrate,
     addLog,
     addQuest,
     removeQuest,
@@ -441,11 +731,21 @@
     isScheduled,
     isDoneOn,
     habitCount,
+    dailyTotals,
+    recordDay,
     computeReward,
     completeQuest,
     undoQuest,
     damage,
     heal,
+    findItem,
+    isUnlocked,
+    bestUnlocked,
+    equippedItem,
+    bonuses,
+    equip,
+    ensureBoss,
+    bossReward,
     addReward,
     removeReward,
     buyReward,

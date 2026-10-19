@@ -6,6 +6,10 @@
   <title>Rotina RPG</title>
   <meta name="description" content="Transforme sua rotina em um RPG: missões, XP, níveis, ouro e conquistas.">
   <meta name="theme-color" content="#16131f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Rotina RPG">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,6 +36,8 @@
           '<p>Use uma versão atual do Chrome, Edge ou Firefox. Se baixou o ZIP, extraia antes de abrir o index.html.</p></div>';
       }
       window.addEventListener('error', function (e) {
+        // Ícones ou manifesto ausentes não impedem o app de rodar.
+        if (e.target && e.target !== window && e.target.tagName !== 'SCRIPT') return;
         lastError = String(e.message || (e.target && e.target.src ? 'Arquivo não encontrado: ' + e.target.src : ''));
         fail();
       }, true);
@@ -41,6 +47,7 @@
   <div id="toasts" class="toasts" aria-live="assertive"></div>
   <dialog id="modal"></dialog>
   <script src="src/game.js"></script>
+  <script src="src/charts.js"></script>
   <script src="src/app.js"></script>
 </body>
 </html>

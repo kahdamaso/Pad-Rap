@@ -3,23 +3,33 @@
   'use strict';
 
   const G = window.RoutineRPG;
+  const C = window.RPGCharts;
   const STORAGE_KEY = 'rotina-rpg:v1';
   const TAB_KEY = 'rotina-rpg:tab';
   const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const TABS = [
     { id: 'quests', icon: '📜', name: 'Missões' },
+    { id: 'gear', icon: '🎒', name: 'Equipamento' },
     { id: 'shop', icon: '🛒', name: 'Loja' },
+    { id: 'stats', icon: '📈', name: 'Evolução' },
     { id: 'achievements', icon: '🏆', name: 'Conquistas' },
     { id: 'log', icon: '📖', name: 'Diário' },
     { id: 'hero', icon: '⚙️', name: 'Herói' },
   ];
+  // Posição de cada equipamento em volta do avatar.
+  const AVATAR_SLOTS = { helmet: 'top', amulet: 'top-right', weapon: 'right', shield: 'left', pet: 'bottom-left' };
 
   const app = document.getElementById('app');
   const modal = document.getElementById('modal');
   const toasts = document.getElementById('toasts');
+  const tip = document.createElement('div');
+  tip.className = 'chart-tip';
+  tip.hidden = true;
+  document.body.appendChild(tip);
 
   let state = load();
   let tab = readTab();
+  let installPrompt = null;
 
   // ---------- Persistência ----------
 
@@ -27,7 +37,7 @@
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
-      const data = JSON.parse(raw);
+      const data = G.migrate(JSON.parse(raw));
       return G.validate(data) ? data : null;
     } catch (e) {
       return null;
@@ -71,6 +81,10 @@
     return b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0;
   }
 
+  function shortDate(key) {
+    return key.split('-').reverse().slice(0, 2).join('/');
+  }
+
   function toast(icon, text, kind) {
     const el = document.createElement('div');
     el.className = `toast ${kind || ''}`;
@@ -86,19 +100,23 @@
     if (result.type === 'damage') {
       if (result.defeated) toast('💀', `Derrotado! Perdeu o progresso do nível e ${result.lostGold} de ouro.`, 'bad');
       else toast('🩸', `−${result.damage} de vida`, 'bad');
+      if (result.bossHealed) toast(state.boss.icon, `${state.boss.name} recuperou ${result.bossHealed} de vida!`, 'bad');
     } else if (result.type === 'reward') {
       toast('✨', `+${result.xp} XP  ·  +${result.gold} ouro`);
+      if (result.boss && !result.boss.defeated) toast(state.boss.icon, `−${result.boss.damage} no ${state.boss.name}`);
       if (result.attrUp) {
         const a = G.ATTRIBUTES[result.attrUp.attr];
         toast(a.icon, `${a.name} subiu para o nível ${result.attrUp.level}!`, 'good');
       }
-      if (result.levelUp) levelUpModal(result.levelUp);
+      if (result.boss && result.boss.defeated) bossDefeatedModal(result.boss, result.levelUp, result.newItems);
+      else if (result.levelUp) levelUpModal(result.levelUp, result.newItems);
     }
     (result.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
   }
 
   function act(fn) {
     const result = fn();
+    G.recordDay(state, G.todayKey());
     save();
     render();
     return result;
@@ -107,28 +125,32 @@
   // Mantém o dia em dia mesmo com a aba aberta durante a meia-noite.
   function checkDay() {
     if (!state) return;
+    const before = state.lastProcessed;
     const summary = G.processRollover(state, G.todayKey());
-    if (summary.days) {
-      save();
+    save();
+    if (state.lastProcessed !== before || summary.boss.spawned) {
       render();
-      if (summary.missed.length || summary.healed) rolloverModal(summary);
+      if (summary.missed.length || summary.healed || summary.boss.escaped || (summary.boss.spawned && summary.days)) rolloverModal(summary);
     }
   }
 
   // ---------- Render ----------
 
   function render() {
+    hideTip();
     if (!state) {
       app.innerHTML = creationView();
       return;
     }
+    const views = { quests: questsView, gear: gearView, shop: shopView, stats: statsView, achievements: achievementsView, log: logView, hero: heroView };
     app.innerHTML = `
       ${heroCard()}
       <nav class="tabs" role="tablist">
-        ${TABS.map((t) => `<button role="tab" class="tab ${t.id === tab ? 'active' : ''}" aria-selected="${t.id === tab}" data-action="tab" data-id="${t.id}"><span>${t.icon}</span><span class="tab-label">${t.name}</span></button>`).join('')}
+        ${TABS.map((t) => `<button role="tab" class="tab ${t.id === tab ? 'active' : ''}" aria-selected="${t.id === tab}" data-action="tab" data-id="${t.id}" title="${t.name}"><span>${t.icon}</span><span class="tab-label">${t.name}</span></button>`).join('')}
       </nav>
-      <section class="panel">${({ quests: questsView, shop: shopView, achievements: achievementsView, log: logView, hero: heroView })[tab]()}</section>
+      <section class="panel">${views[tab]()}</section>
     `;
+    if (tab === 'stats') drawCharts();
   }
 
   function creationView() {
@@ -166,6 +188,17 @@
     `;
   }
 
+  function avatar(size) {
+    const cls = G.CLASSES[state.hero.cls];
+    const badges = Object.entries(AVATAR_SLOTS)
+      .map(([slot, pos]) => {
+        const item = G.equippedItem(state, slot);
+        return item ? `<span class="avatar-item pos-${pos} tier-${item.tier}" title="${esc(item.name)}">${item.icon}</span>` : '';
+      })
+      .join('');
+    return `<div class="avatar ${size || ''}" aria-hidden="true"><span class="avatar-class">${cls.icon}</span>${badges}</div>`;
+  }
+
   function heroCard() {
     const h = state.hero;
     const cls = G.CLASSES[h.cls];
@@ -174,7 +207,7 @@
     const lowHp = h.hp / max <= 0.3;
     return `
       <header class="hero card">
-        <div class="avatar" aria-hidden="true">${cls.icon}</div>
+        ${avatar()}
         <div class="hero-info">
           <div class="hero-top">
             <h1>${esc(h.name)}</h1>
@@ -204,6 +237,34 @@
           }).join('')}
         </div>
       </header>
+    `;
+  }
+
+  function bossCard(today) {
+    const b = state.boss;
+    if (!b) return '';
+    const end = G.addDays(b.week, 6);
+    const daysLeft = Math.round((new Date(`${end}T12:00`) - new Date(`${today}T12:00`)) / 864e5) + 1;
+    const bonus = Math.round(G.bonuses(state).bossDmg * 100);
+    const reward = G.bossReward(state);
+    return `
+      <div class="boss card ${b.defeated ? 'defeated' : ''}">
+        <div class="boss-icon" aria-hidden="true">${b.defeated ? '🏅' : b.icon}</div>
+        <div class="boss-body">
+          <div class="boss-top">
+            <span class="muted small">Chefe da semana</span>
+            <span class="muted small">${b.defeated ? 'Derrotado!' : `${daysLeft} ${daysLeft === 1 ? 'dia restante' : 'dias restantes'}`}</span>
+          </div>
+          <strong class="boss-name">${esc(b.name)}</strong>
+          <div class="bar-row">
+            <div class="bar boss-bar" role="progressbar" aria-label="Vida do chefe" aria-valuenow="${b.hp}" aria-valuemax="${b.maxHp}"><div style="width:${pct(b.hp, b.maxHp)}%"></div></div>
+            <span class="bar-value">${b.hp}/${b.maxHp}</span>
+          </div>
+          <span class="muted small">${b.defeated
+            ? 'Vitória! Um novo chefe aparece na segunda-feira.'
+            : `Cada missão causa dano igual ao XP ganho${bonus ? ` (+${bonus}% pela arma)` : ''}. Prêmio: ${reward.xp} XP e ${reward.gold} ouro.`}</span>
+        </div>
+      </div>
     `;
   }
 
@@ -271,6 +332,7 @@
     const doneCount = todayDailies.filter((q) => G.isDoneOn(q, today)).length;
 
     return `
+      ${bossCard(today)}
       <div class="toolbar">
         <div>
           <strong>${WEEKDAYS[G.dayOfWeek(today)]}, ${today.split('-').reverse().join('/')}</strong>
@@ -284,6 +346,52 @@
       ${questGroup('Hábitos', 'Toque quantas vezes quiser', habits, today, 'Crie hábitos bons (+) para ganhar XP, ou ruins (−) para se policiar.')}
       ${questGroup('Tarefas', 'Missões únicas', pending, today, 'Nenhuma tarefa pendente.')}
       ${finished.length ? `<details class="group-more"><summary>Tarefas concluídas (${finished.length})</summary><ul class="quest-list">${finished.map((q) => questItem(q, today)).join('')}</ul><button class="btn ghost small" data-action="clear-done">Limpar concluídas</button></details>` : ''}
+    `;
+  }
+
+  function gearView() {
+    const level = G.heroLevel(state);
+    const b = G.bonuses(state);
+    const summary = Object.entries(G.SLOTS)
+      .map(([slot, s]) => {
+        const v = Math.round(b[s.effect] * 100);
+        return v ? `<span class="chip reward">${s.desc(v)}</span>` : '';
+      })
+      .join('');
+    return `
+      <div class="gear-top card">
+        ${avatar('big')}
+        <div>
+          <strong>Equipamento</strong>
+          <p class="muted small">Novos itens são liberados ao subir de nível e equipados automaticamente. Você pode trocar quando quiser.</p>
+          <div class="chips">${summary || '<span class="chip">Sem bônus ainda — suba de nível!</span>'}</div>
+        </div>
+      </div>
+      ${Object.entries(G.SLOTS).map(([slot, s]) => {
+        const items = G.EQUIPMENT.filter((i) => i.slot === slot);
+        const current = G.equippedItem(state, slot);
+        return `<div class="group">
+          <div class="group-head"><h2>${s.name}</h2><span class="muted small">${s.desc('X').replace('X', '…')}</span></div>
+          <ul class="gear-list">
+            ${items.map((i) => {
+              const unlocked = level >= i.level;
+              const equipped = current && current.id === i.id;
+              return `<li class="gear-item card tier-${i.tier} ${unlocked ? '' : 'locked'} ${equipped ? 'equipped' : ''}">
+                <span class="gear-icon">${unlocked ? i.icon : '🔒'}</span>
+                <div class="gear-body">
+                  <strong>${unlocked ? esc(i.name) : '???'}</strong>
+                  <span class="small"><span class="tier-label">${G.TIERS[i.tier]}</span> · ${i.value ? s.desc(i.value) : 'sem bônus'}</span>
+                </div>
+                ${equipped
+                  ? '<span class="chip reward">Equipado</span>'
+                  : unlocked
+                    ? `<button class="btn small-btn" data-action="equip" data-id="${i.id}">Equipar</button>`
+                    : `<span class="chip">Nv. ${i.level}</span>`}
+              </li>`;
+            }).join('')}
+          </ul>
+        </div>`;
+      }).join('')}
     `;
   }
 
@@ -314,6 +422,178 @@
     `;
   }
 
+  // ---------- Evolução ----------
+
+  function lastDays(n) {
+    const today = G.todayKey();
+    const start = G.addDays(today, -(n - 1));
+    const first = state.createdAt > start ? state.createdAt : start;
+    const days = [];
+    for (let d = first; d <= today; d = G.addDays(d, 1)) days.push(d);
+    return days;
+  }
+
+  function seriesData() {
+    const today = G.todayKey();
+    const hist = state.history;
+
+    const done = lastDays(30).map((d) => {
+      const v = (hist[d] && hist[d].done) || 0;
+      return { label: shortDate(d), value: v, tip: `${v} ${v === 1 ? 'missão' : 'missões'}|${WEEKDAYS[G.dayOfWeek(d)]} ${shortDate(d)}` };
+    });
+
+    // XP: repete o último valor conhecido nos dias sem registro.
+    const sorted = Object.keys(hist).sort();
+    let carry = 0;
+    const xpDays = lastDays(90);
+    sorted.forEach((k) => {
+      if (k < xpDays[0] && typeof hist[k].xp === 'number') carry = hist[k].xp;
+    });
+    const xp = xpDays.map((d) => {
+      if (d === today) carry = state.hero.xp;
+      else if (hist[d] && typeof hist[d].xp === 'number') carry = hist[d].xp;
+      return { label: shortDate(d), value: carry, tip: `${carry} XP · nível ${G.levelFromXp(carry)}|${WEEKDAYS[G.dayOfWeek(d)]} ${shortDate(d)}` };
+    });
+
+    const weeks = [];
+    const thisWeek = G.weekStart(today);
+    const firstWeek = G.weekStart(state.createdAt);
+    for (let i = 11; i >= 0; i--) {
+      const w = G.addDays(thisWeek, -7 * i);
+      if (w < firstWeek) continue;
+      let due = 0;
+      let ok = 0;
+      for (let j = 0; j < 7; j++) {
+        const d = G.addDays(w, j);
+        if (d > today) break;
+        const t = d === today ? G.dailyTotals(state, d) : { due: (hist[d] && hist[d].due) || 0, done: (hist[d] && hist[d].dailyDone) || 0 };
+        due += t.due;
+        ok += t.done;
+      }
+      const value = due ? Math.round((ok / due) * 100) : null;
+      weeks.push({ label: shortDate(w), value, due, ok, tip: `${value == null ? 'Sem diárias' : `${value}% (${ok} de ${due})`}|Semana de ${shortDate(w)}` });
+    }
+    return { done, xp, weeks };
+  }
+
+  function dataTable(head, rows) {
+    return `<details class="table-view"><summary>Ver dados em tabela</summary>
+      <table><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    </details>`;
+  }
+
+  function statsView() {
+    const data = seriesData();
+    const s = state.stats;
+    const activeDays = data.done.filter((d) => d.value > 0).length;
+    const week = data.weeks[data.weeks.length - 1];
+    const attrs = Object.entries(G.ATTRIBUTES).map(([id, a]) => ({ id, a, xp: state.hero.attrs[id], level: G.levelFromXp(state.hero.attrs[id], G.ATTR_BASE) }));
+    const maxAttr = Math.max(1, ...attrs.map((x) => x.xp));
+    return `
+      <div class="toolbar"><div><strong>Evolução</strong><span class="muted small"> · sua jornada em números</span></div></div>
+      <div class="stats-grid">
+        <div class="stat card"><span class="muted small">Nível</span><span class="stat-value">${G.heroLevel(state)}</span></div>
+        <div class="stat card"><span class="muted small">Dias ativos (30 dias)</span><span class="stat-value">${activeDays}</span></div>
+        <div class="stat card"><span class="muted small">Diárias nesta semana</span><span class="stat-value">${week && week.value != null ? `${week.value}%` : '—'}</span></div>
+        <div class="stat card"><span class="muted small">Chefes derrotados</span><span class="stat-value">${s.bossesDefeated}</span></div>
+      </div>
+
+      <div class="chart-card card">
+        <h2>Missões concluídas por dia</h2>
+        <p class="muted small">Últimos 30 dias</p>
+        <div class="chart" data-chart="done"></div>
+        ${dataTable(['Dia', 'Missões'], data.done.map((d) => [d.label, d.value]))}
+      </div>
+
+      <div class="chart-card card">
+        <h2>Experiência total</h2>
+        <p class="muted small">Últimos 90 dias</p>
+        <div class="chart" data-chart="xp"></div>
+        ${dataTable(['Dia', 'XP'], data.xp.map((d) => [d.label, d.value]))}
+      </div>
+
+      <div class="chart-card card">
+        <h2>Diárias cumpridas por semana</h2>
+        <p class="muted small">Porcentagem das diárias agendadas que você fez</p>
+        <div class="chart" data-chart="weeks"></div>
+        ${dataTable(['Semana', 'Cumpridas', 'Agendadas', '%'], data.weeks.map((w) => [w.label, w.ok, w.due, w.value == null ? '—' : `${w.value}%`]))}
+      </div>
+
+      <div class="chart-card card">
+        <h2>Atributos</h2>
+        <p class="muted small">XP acumulado em cada atributo</p>
+        <ul class="hbars">
+          ${attrs.map((x) => `<li>
+            <span class="hbar-label">${x.a.icon} ${x.a.name}</span>
+            <span class="hbar-track"><span class="hbar-fill" style="width:${pct(x.xp, maxAttr)}%"></span></span>
+            <span class="hbar-value">Nv. ${x.level} · ${C.compact(x.xp)} XP</span>
+          </li>`).join('')}
+        </ul>
+      </div>
+    `;
+  }
+
+  function drawCharts() {
+    const data = seriesData();
+    app.querySelectorAll('[data-chart]').forEach((el) => {
+      const width = Math.max(260, el.clientWidth);
+      const kind = el.dataset.chart;
+      if (kind === 'done') el.innerHTML = C.columnChart(data.done, width, { label: 'Missões concluídas por dia' });
+      if (kind === 'xp') el.innerHTML = C.lineChart(data.xp, width, { label: 'Experiência total' });
+      if (kind === 'weeks') el.innerHTML = C.columnChart(data.weeks, width, { label: 'Diárias cumpridas por semana', max: 100, format: (v) => `${Math.round(v)}%` });
+    });
+  }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => state && tab === 'stats' && drawCharts(), 150);
+  });
+
+  // Tooltip dos gráficos: o valor em destaque, o rótulo embaixo.
+  function showTip(target, x, y) {
+    const [value, label] = target.dataset.tip.split('|');
+    tip.innerHTML = '';
+    const strong = document.createElement('strong');
+    strong.textContent = value;
+    const small = document.createElement('span');
+    small.textContent = label || '';
+    tip.append(strong, small);
+    tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - r.width - 8, Math.max(8, x - r.width / 2));
+    const top = y - r.height - 12 < 8 ? y + 16 : y - r.height - 12;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+    app.querySelectorAll('.hit.active').forEach((el) => el.classList.remove('active'));
+    target.classList.add('active');
+  }
+
+  function hideTip() {
+    tip.hidden = true;
+    app.querySelectorAll('.hit.active').forEach((el) => el.classList.remove('active'));
+  }
+
+  app.addEventListener('pointermove', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (t) showTip(t, e.clientX, e.clientY);
+    else if (!tip.hidden) hideTip();
+  });
+  app.addEventListener('pointerdown', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (t) showTip(t, e.clientX, e.clientY);
+  });
+  app.addEventListener('focusin', (e) => {
+    const t = e.target.closest('[data-tip]');
+    if (!t) return;
+    const r = t.getBoundingClientRect();
+    showTip(t, r.left + r.width / 2, r.top + 20);
+  });
+  app.addEventListener('focusout', hideTip);
+  app.addEventListener('pointerleave', hideTip);
+  window.addEventListener('scroll', hideTip, { passive: true });
+
   function achievementsView() {
     const total = G.ACHIEVEMENTS.length;
     const got = G.ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length;
@@ -341,23 +621,43 @@
     `;
   }
 
+  function installCard() {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    let body;
+    if (standalone) body = '<p>✅ O app já está instalado e funciona sem internet.</p>';
+    else if (!/^https?:$/.test(location.protocol)) {
+      body = `<p class="muted small">Para instalar no celular, o app precisa estar publicado num endereço da internet
+        (por exemplo, GitHub Pages — veja o README). Aberto como arquivo no computador ele funciona, mas não pode ser instalado.</p>`;
+    } else if (installPrompt) {
+      body = '<p class="muted small">Instale para abrir como um aplicativo, direto da tela inicial, mesmo sem internet.</p><button class="btn primary" data-action="install">📲 Instalar app</button>';
+    } else if (ios) {
+      body = '<p class="muted small">No Safari, toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>.</p>';
+    } else {
+      body = '<p class="muted small">No menu do navegador (⋮), toque em <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>.</p>';
+    }
+    return `<div class="card settings"><h2>Instalar no celular</h2>${body}</div>`;
+  }
+
   function heroView() {
     const s = state.stats;
     return `
       <div class="toolbar"><div><strong>Ficha do Herói</strong></div></div>
       <div class="stats-grid">
-        <div class="stat card"><span class="stat-value">${s.completed}</span><span class="muted small">missões concluídas</span></div>
-        <div class="stat card"><span class="stat-value">${s.bestStreak}</span><span class="muted small">melhor sequência</span></div>
-        <div class="stat card"><span class="stat-value">${s.goldEarned}</span><span class="muted small">ouro ganho</span></div>
-        <div class="stat card"><span class="stat-value">${s.defeats}</span><span class="muted small">derrotas</span></div>
+        <div class="stat card"><span class="muted small">Missões concluídas</span><span class="stat-value">${s.completed}</span></div>
+        <div class="stat card"><span class="muted small">Melhor sequência</span><span class="stat-value">${s.bestStreak}</span></div>
+        <div class="stat card"><span class="muted small">Ouro ganho</span><span class="stat-value">${s.goldEarned}</span></div>
+        <div class="stat card"><span class="muted small">Derrotas</span><span class="stat-value">${s.defeats}</span></div>
       </div>
+      ${installCard()}
       <div class="card rules">
         <h2>Como funciona</h2>
         <ul>
           <li><strong>Diárias</strong> dão XP e ouro; cada dia seguido aumenta a recompensa em 10% (até +100%).</li>
           <li>Diária esquecida tira vida na virada do dia e zera a sequência. Cada noite de descanso recupera 10% da vida.</li>
           <li>Com a vida em 0 você é <strong>derrotado</strong>: perde o progresso do nível atual e metade do ouro.</li>
-          <li>Subir de nível restaura a vida e aumenta a vida máxima.</li>
+          <li>Subir de nível restaura a vida, aumenta a vida máxima e libera <strong>equipamentos</strong> com bônus.</li>
+          <li>Toda semana aparece um <strong>chefe</strong>. Suas missões causam dano nele; hábitos ruins o curam. Se ele sobreviver até domingo, foge e acerta um golpe.</li>
           <li>Missões do atributo da sua classe rendem +20% de XP.</li>
         </ul>
       </div>
@@ -441,6 +741,8 @@
     `);
   }
 
+  let pendingConfirm = null;
+
   function confirmModal(text, confirmLabel, onConfirm) {
     pendingConfirm = onConfirm;
     openModal(`
@@ -452,28 +754,51 @@
       </div>
     `);
   }
-  let pendingConfirm = null;
 
-  function levelUpModal(level) {
+  function newItemsHtml(items) {
+    if (!items || !items.length) return '';
+    return `<p class="muted small">Novos equipamentos:</p><div class="new-items">${items.map((i) => `<span class="new-item tier-${i.tier}">${i.icon} ${esc(i.name)}</span>`).join('')}</div>`;
+  }
+
+  function levelUpModal(level, items) {
     openModal(`
       <div class="celebrate">
         <div class="big-icon">⭐</div>
         <h2>Nível ${level}!</h2>
         <p>Sua vida máxima subiu para ${G.maxHp(level)} e foi totalmente restaurada.</p>
+        ${newItemsHtml(items)}
         <button class="btn primary" data-action="close-modal">Continuar a aventura</button>
+      </div>
+    `);
+  }
+
+  function bossDefeatedModal(hit, level, items) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏅</div>
+        <h2>${esc(state.boss.name)} foi derrotado!</h2>
+        <p>Prêmio: <strong>+${hit.reward.xp} XP</strong> e <strong>+${hit.reward.gold} ouro</strong>.</p>
+        ${level ? `<p>Você subiu para o nível ${level}!</p>` : ''}
+        ${newItemsHtml(items)}
+        <p class="muted small">Um novo chefe aparece na segunda-feira.</p>
+        <button class="btn primary" data-action="close-modal">Glória!</button>
       </div>
     `);
   }
 
   function rolloverModal(summary) {
     const missed = summary.missed;
+    const boss = summary.boss || {};
+    const title = summary.defeated ? 'Você foi derrotado…' : missed.length || boss.escaped ? 'Um novo dia, cicatrizes do anterior' : 'Bom dia, herói!';
     openModal(`
       <div class="celebrate">
         <div class="big-icon">${summary.defeated ? '💀' : missed.length ? '⚔️' : '🌅'}</div>
-        <h2>${summary.defeated ? 'Você foi derrotado…' : missed.length ? 'Um novo dia, cicatrizes do anterior' : 'Bom dia, herói!'}</h2>
-        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${m.day.split('-').reverse().slice(0, 2).join('/')}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : '<p>Nenhuma diária esquecida. Continue assim!</p>'}
+        <h2>${title}</h2>
+        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${shortDate(m.day)}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : '<p>Nenhuma diária esquecida. Continue assim!</p>'}
+        ${boss.escaped ? `<p>${boss.escaped.icon} ${esc(boss.escaped.name)} escapou e acertou um golpe: <span class="bad-text">−${boss.escaped.damage} ❤️</span></p>` : ''}
         ${summary.defeated ? '<p>Você perdeu o progresso do nível atual e metade do ouro, mas está de pé novamente.</p>' : ''}
         ${summary.healed ? `<p class="muted small">O descanso recuperou ${summary.healed} de vida.</p>` : ''}
+        ${boss.spawned ? `<p><strong>${boss.spawned.icon} ${esc(boss.spawned.name)}</strong> apareceu! Vida: ${boss.spawned.maxHp}.</p>` : ''}
         <button class="btn primary" data-action="close-modal">Encarar o dia</button>
       </div>
     `);
@@ -543,6 +868,27 @@
       case 'delete-reward':
         act(() => G.removeReward(state, id));
         break;
+      case 'equip': {
+        const unlocked = act(() => {
+          const ok = G.equip(state, id);
+          return ok ? G.checkAchievements(state) : null;
+        });
+        if (unlocked) {
+          const item = G.findItem(id);
+          toast(item.icon, `${item.name} equipado.`);
+          unlocked.forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
+        }
+        break;
+      }
+      case 'install':
+        if (installPrompt) {
+          installPrompt.prompt();
+          installPrompt.userChoice.finally(() => {
+            installPrompt = null;
+            render();
+          });
+        }
+        break;
       case 'export':
         exportState();
         break;
@@ -575,8 +921,10 @@
     const data = new FormData(form);
     if (form.id === 'create-form') {
       e.preventDefault();
-      state = G.createState(String(data.get('name')).trim(), data.get('cls'), G.todayKey());
+      const today = G.todayKey();
+      state = G.createState(String(data.get('name')).trim(), data.get('cls'), today);
       if (data.get('starter')) addStarterQuests();
+      G.processRollover(state, today); // invoca o primeiro chefe já com as missões
       tab = 'quests';
       save();
       render();
@@ -627,7 +975,7 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const data = JSON.parse(reader.result);
+        const data = G.migrate(JSON.parse(reader.result));
         if (!G.validate(data)) throw new Error('inválido');
         state = data;
         save();
@@ -652,6 +1000,32 @@
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
+  // ---------- Instalação (PWA) ----------
+  // Só funciona servido por http(s); aberto como arquivo, o app roda normalmente sem isso.
+
+  if (/^https?:$/.test(location.protocol)) {
+    [['manifest', 'manifest.webmanifest'], ['apple-touch-icon', 'icons/apple-touch-icon.png']].forEach(([rel, href]) => {
+      const link = document.createElement('link');
+      link.rel = rel;
+      link.href = href;
+      document.head.appendChild(link);
+    });
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    installPrompt = e;
+    if (state && tab === 'hero') render();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    toast('📲', 'App instalado!', 'good');
+  });
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) checkDay();
