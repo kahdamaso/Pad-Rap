@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rotina RPG</title>
+  <meta name="description" content="Transforme sua rotina em um RPG: missões, XP, níveis, ouro e conquistas.">
+  <meta name="theme-color" content="#16131f">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <main id="app" aria-live="polite">
+    <div class="boot-msg">
+      <h1>Rotina RPG</h1>
+      <p>Carregando…</p>
+      <noscript><p>Este app precisa de JavaScript. Ative o JavaScript no navegador.</p></noscript>
+    </div>
+  </main>
+  <script>
+    // Mostra o problema na tela em vez de deixar a página em branco.
+    (function () {
+      var lastError = '';
+      function fail() {
+        var app = document.getElementById('app');
+        if (!app || window.RoutineRPGStarted) return;
+        app.innerHTML = '<div class="boot-msg"><h1>Rotina RPG</h1><p>Não foi possível iniciar o app.</p>' +
+          (lastError ? '<p><small>' + lastError.replace(/</g, '&lt;') + '</small></p>' : '') +
+          '<p>Use uma versão atual do Chrome, Edge ou Firefox. Se baixou o ZIP, extraia antes de abrir o index.html.</p></div>';
+      }
+      window.addEventListener('error', function (e) {
+        lastError = String(e.message || (e.target && e.target.src ? 'Arquivo não encontrado: ' + e.target.src : ''));
+        fail();
+      }, true);
+      window.addEventListener('load', fail);
+    })();
+  </script>
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+  <dialog id="modal"></dialog>
+  <script src="src/game.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

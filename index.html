@@ -10,13 +10,1600 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="src/styles.css">
+  <style>
+:root {
+  --bg: #16131f;
+  --bg-2: #1f1a2c;
+  --card: #262035;
+  --card-2: #2f2842;
+  --border: #3d3454;
+  --text: #ece6f7;
+  --muted: #a99fc0;
+  --accent: #9b7bff;
+  --accent-2: #c3b0ff;
+  --gold: #f2c14e;
+  --hp: #e5484d;
+  --hp-low: #ff6b6b;
+  --xp: #4cc38a;
+  --bad: #ff7a7a;
+  --good: #6fdca5;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f5f1e8;
+    --bg-2: #ece5d6;
+    --card: #fffdf8;
+    --card-2: #f4eee2;
+    --border: #ddd2bd;
+    --text: #2a2236;
+    --muted: #6e6480;
+    --accent: #6c4de0;
+    --accent-2: #5a3fc4;
+    --gold: #b7860b;
+    --hp: #d33a3f;
+    --hp-low: #e5484d;
+    --xp: #2a9d68;
+    --bad: #c53030;
+    --good: #2a9d68;
+    --shadow: 0 4px 16px rgba(60, 40, 20, 0.12);
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  background: radial-gradient(ellipse at top, var(--bg-2), var(--bg) 60%) fixed, var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+h1, h2, .logo { font-family: Cinzel, Georgia, serif; letter-spacing: 0.02em; }
+h1 { font-size: 1.4rem; margin: 0; }
+h2 { font-size: 1.05rem; margin: 0; }
+
+.muted { color: var(--muted); }
+.small { font-size: 0.82rem; }
+.gold-text { color: var(--gold); }
+.bad-text { color: var(--bad); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ---------- Botões ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.08s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.big { padding: 13px 20px; font-size: 1rem; width: 100%; }
+.btn.ghost { background: transparent; }
+.btn.small { padding: 6px 10px; font-size: 0.82rem; margin-top: 8px; }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--border)); }
+.btn.gold-btn { background: color-mix(in srgb, var(--gold) 18%, var(--card-2)); border-color: var(--gold); color: var(--gold); }
+
+.icon-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0.35;
+  padding: 6px;
+  border-radius: 8px;
+  transition: opacity 0.15s;
+}
+.icon-btn:hover, .icon-btn:focus-visible { opacity: 1; }
+
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.btn-row.end { justify-content: flex-end; }
+
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+/* ---------- Criação ---------- */
+
+.creation { max-width: 560px; margin: 4vh auto 0; text-align: center; }
+.logo { font-size: 2.4rem; font-weight: 800; margin: 0; background: linear-gradient(90deg, var(--gold), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lead { color: var(--muted); margin: 8px 0 24px; }
+.creation form { padding: 20px; text-align: left; display: grid; gap: 16px; }
+
+.field { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.field > span, .field legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 6px; }
+.field small { color: var(--muted); font-weight: 400; }
+
+input:not([type=radio]):not([type=checkbox]), select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+input:focus, select:focus { border-color: var(--accent); outline: none; }
+
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 18px; height: 18px; }
+
+.class-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.class-option input { position: absolute; opacity: 0; pointer-events: none; }
+.class-card {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.class-card small { color: var(--muted); font-size: 0.75rem; }
+.class-icon { font-size: 1.8rem; }
+.class-option input:checked + .class-card { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); transform: translateY(-2px); }
+.class-option input:focus-visible + .class-card { outline: 2px solid var(--accent-2); }
+
+/* ---------- Herói ---------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px 16px;
+  padding: 16px;
+}
+.avatar {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  font-size: 2.4rem;
+  border-radius: 18px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 35%, var(--card-2)), var(--card-2));
+  border: 1px solid var(--border);
+}
+.hero-info { display: grid; gap: 6px; min-width: 0; }
+.hero-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.hero-top h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.badge { font-size: 0.78rem; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-2); }
+.gold { margin-left: auto; font-weight: 700; color: var(--gold); }
+
+.bar-row { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; }
+.bar-value { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.bar { height: 12px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; }
+.bar > div { height: 100%; border-radius: inherit; transition: width 0.5s cubic-bezier(.2,.8,.2,1); }
+.bar.hp > div { background: linear-gradient(90deg, var(--hp), var(--hp-low)); }
+.bar.hp.low > div { animation: pulse 1.2s infinite; }
+.bar.xp > div { background: linear-gradient(90deg, var(--xp), color-mix(in srgb, var(--xp) 60%, #fff)); }
+.bar.mini { height: 5px; border: 0; }
+.bar.mini > div { background: var(--accent); }
+
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+.attrs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.attr {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--card-2);
+  border: 1px solid transparent;
+  min-width: 0;
+}
+.attr.class-attr { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.attr-name { font-size: 0.78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attr-level { font-weight: 700; font-variant-numeric: tabular-nums; }
+.attr .bar { grid-column: 1 / -1; }
+
+/* ---------- Abas ---------- */
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin: 16px 0;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  box-shadow: var(--shadow);
+}
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 4px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.tab.active { background: var(--accent); color: #fff; }
+.tab:not(.active):hover { color: var(--text); background: var(--card-2); }
+
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+
+.banner { padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--good) 15%, var(--card)); border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); margin: 0 0 12px; }
+
+/* ---------- Missões ---------- */
+
+.group { margin-bottom: 20px; }
+.group-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.empty { color: var(--muted); font-size: 0.9rem; padding: 14px; border: 1px dashed var(--border); border-radius: var(--radius); margin: 0; }
+
+.group-more { margin: -8px 0 20px; }
+.group-more summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; padding: 6px 0; }
+.group-more .quest-list { margin-top: 6px; }
+
+.quest-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.quest {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: opacity 0.2s, border-color 0.2s;
+}
+.quest:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.quest.is-done { opacity: 0.6; }
+.quest.is-done .quest-title { text-decoration: line-through; }
+.quest-control { display: flex; align-items: center; gap: 6px; }
+.quest-body { min-width: 0; display: grid; gap: 4px; }
+.quest-title { font-weight: 600; overflow-wrap: anywhere; }
+
+.check-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.check-btn:hover { border-color: var(--xp); }
+.check-btn.done { background: var(--xp); border-color: var(--xp); animation: pop 0.25s; }
+
+.habit-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.15s;
+}
+.habit-btn:active { transform: scale(0.9); }
+.habit-btn.good { background: var(--xp); }
+.habit-btn.bad { background: var(--hp); }
+.count { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+@keyframes pop { 50% { transform: scale(1.18); } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--muted); white-space: nowrap; }
+.chip.reward { color: var(--good); }
+.chip.streak { color: #ff9f43; }
+.chip.bad { color: var(--bad); }
+.chip.diff-hard { color: #ff9f43; }
+.chip.diff-epic { color: var(--accent-2); }
+
+/* ---------- Loja ---------- */
+
+.shop, .achievements, .log { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.shop-item { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 12px; }
+.shop-icon { font-size: 1.6rem; }
+.shop-body { display: grid; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---------- Conquistas ---------- */
+
+.achievements { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.achievement { display: flex; gap: 12px; padding: 12px; opacity: 0.55; }
+.achievement.unlocked { opacity: 1; border-color: color-mix(in srgb, var(--gold) 50%, var(--border)); }
+.achievement p { margin: 2px 0; }
+.ach-icon { font-size: 1.8rem; }
+
+/* ---------- Diário ---------- */
+
+.log li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 8px 2px; border-bottom: 1px solid var(--border); }
+.log-text { overflow-wrap: anywhere; }
+
+/* ---------- Ficha ---------- */
+
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.stat { display: grid; padding: 14px; text-align: center; }
+.stat-value { font-size: 1.5rem; font-weight: 700; font-family: Cinzel, Georgia, serif; }
+.rules, .settings { padding: 16px; margin-bottom: 12px; }
+.rules ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+.inline-form { display: flex; gap: 8px; margin-top: 12px; }
+
+/* ---------- Modal ---------- */
+
+dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px); }
+.modal-inner { padding: 20px; }
+.modal-inner form { display: grid; gap: 14px; }
+.modal-inner h2 { margin-bottom: 4px; }
+
+.segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; }
+.segmented input, .weekdays input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented span, .weekdays span {
+  display: block;
+  text-align: center;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.segmented input:checked + span, .weekdays input:checked + span { background: color-mix(in srgb, var(--accent) 22%, var(--card-2)); border-color: var(--accent); }
+.segmented input:focus-visible + span, .weekdays input:focus-visible + span { outline: 2px solid var(--accent-2); }
+.weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.weekdays span { padding: 8px 0; font-size: 0.78rem; }
+
+.celebrate { text-align: center; display: grid; gap: 8px; justify-items: center; }
+.celebrate p { margin: 0; }
+.celebrate .btn { margin-top: 10px; }
+.big-icon { font-size: 3.2rem; animation: pop 0.5s; }
+.missed { text-align: left; margin: 0; padding-left: 18px; }
+
+/* ---------- Toasts ---------- */
+
+.toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 50; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+  animation: toast-in 0.25s ease-out;
+  transition: opacity 0.4s, transform 0.4s;
+}
+.toast.good { border-color: var(--good); }
+.toast.bad { border-color: var(--bad); }
+.toast.gold { border-color: var(--gold); }
+.toast.out { opacity: 0; transform: translateY(8px); }
+.toast-icon { font-size: 1.2rem; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(12px); } }
+
+/* ---------- Telas pequenas ---------- */
+
+@media (max-width: 640px) {
+  .attrs { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .attr { grid-template-columns: 1fr; justify-items: center; padding: 6px 4px; text-align: center; }
+  .attr-name { display: none; }
+  .tab-label { display: none; }
+  .tab { font-size: 1.15rem; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .avatar { width: 60px; height: 60px; font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+.boot-msg { max-width: 520px; margin: 12vh auto 0; text-align: center; }
+.boot-msg h1 { font-size: 2rem; margin-bottom: 12px; }
+</style>
 </head>
 <body>
-  <main id="app" aria-live="polite"></main>
+  <main id="app" aria-live="polite">
+    <div class="boot-msg">
+      <h1>Rotina RPG</h1>
+      <p>Carregando…</p>
+      <noscript><p>Este app precisa de JavaScript. Ative o JavaScript no navegador.</p></noscript>
+    </div>
+  </main>
+  <script>
+    // Mostra o problema na tela em vez de deixar a página em branco.
+    (function () {
+      var lastError = '';
+      function fail() {
+        var app = document.getElementById('app');
+        if (!app || window.RoutineRPGStarted) return;
+        app.innerHTML = '<div class="boot-msg"><h1>Rotina RPG</h1><p>Não foi possível iniciar o app.</p>' +
+          (lastError ? '<p><small>' + lastError.replace(/</g, '&lt;') + '</small></p>' : '') +
+          '<p>Use uma versão atual do Chrome, Edge ou Firefox. Se baixou o ZIP, extraia antes de abrir o index.html.</p></div>';
+      }
+      window.addEventListener('error', function (e) {
+        lastError = String(e.message || (e.target && e.target.src ? 'Arquivo não encontrado: ' + e.target.src : ''));
+        fail();
+      }, true);
+      window.addEventListener('load', fail);
+    })();
+  </script>
   <div id="toasts" class="toasts" aria-live="assertive"></div>
   <dialog id="modal"></dialog>
-  <script src="src/game.js"></script>
-  <script src="src/app.js"></script>
+  <script>
+// Regras do jogo: funções puras sobre o estado, sem DOM.
+// Funciona no navegador (window.RoutineRPG) e no Node (module.exports).
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.RoutineRPG = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const VERSION = 1;
+  const MAX_CATCHUP_DAYS = 7;
+  const MAX_LOG = 150;
+
+  const ATTRIBUTES = {
+    str: { name: 'Força', icon: '💪', hint: 'Exercício, esforço físico' },
+    int: { name: 'Inteligência', icon: '📚', hint: 'Estudo, leitura, trabalho' },
+    wis: { name: 'Sabedoria', icon: '🧘', hint: 'Meditação, organização, reflexão' },
+    cha: { name: 'Carisma', icon: '🎭', hint: 'Amigos, família, criatividade' },
+    vit: { name: 'Vitalidade', icon: '🍎', hint: 'Sono, alimentação, saúde' },
+  };
+
+  const CLASSES = {
+    guerreiro: { name: 'Guerreiro', icon: '⚔️', attr: 'str' },
+    mago: { name: 'Mago', icon: '🔮', attr: 'int' },
+    monge: { name: 'Monge', icon: '☯️', attr: 'wis' },
+    bardo: { name: 'Bardo', icon: '🎻', attr: 'cha' },
+    druida: { name: 'Druida', icon: '🌿', attr: 'vit' },
+  };
+
+  const DIFFICULTY = {
+    easy: { name: 'Fácil', xp: 10, gold: 5, damage: 3 },
+    medium: { name: 'Média', xp: 25, gold: 10, damage: 5 },
+    hard: { name: 'Difícil', xp: 50, gold: 20, damage: 8 },
+    epic: { name: 'Épica', xp: 100, gold: 40, damage: 12 },
+  };
+
+  const CLASS_BONUS = 0.2;
+  const STREAK_BONUS_PER_DAY = 0.1;
+  const STREAK_BONUS_CAP = 10;
+
+  // ---------- Datas (chaves locais AAAA-MM-DD) ----------
+
+  function pad(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function todayKey(date) {
+    const d = date || new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function parseKey(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d, 12);
+  }
+
+  function addDays(key, n) {
+    const d = parseKey(key);
+    d.setDate(d.getDate() + n);
+    return todayKey(d);
+  }
+
+  function dayOfWeek(key) {
+    return parseKey(key).getDay();
+  }
+
+  // ---------- Níveis ----------
+
+  // XP total para chegar ao nível n: 0, 100, 300, 600, 1000...
+  function xpForLevel(n, base) {
+    const b = base || 50;
+    return b * (n - 1) * n;
+  }
+
+  function levelFromXp(xp, base) {
+    let n = 1;
+    while (xpForLevel(n + 1, base) <= xp) n++;
+    return n;
+  }
+
+  function levelProgress(xp, base) {
+    const level = levelFromXp(xp, base);
+    const start = xpForLevel(level, base);
+    const end = xpForLevel(level + 1, base);
+    return { level, current: xp - start, needed: end - start };
+  }
+
+  const ATTR_BASE = 25;
+
+  function maxHp(level) {
+    return 50 + (level - 1) * 5;
+  }
+
+  function heroLevel(state) {
+    return levelFromXp(state.hero.xp);
+  }
+
+  // ---------- Estado ----------
+
+  let idCounter = 0;
+  function uid() {
+    idCounter = (idCounter + 1) % 1e6;
+    return Date.now().toString(36) + idCounter.toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function createState(name, cls, today) {
+    const key = today || todayKey();
+    const attrs = {};
+    Object.keys(ATTRIBUTES).forEach((a) => (attrs[a] = 0));
+    const state = {
+      version: VERSION,
+      hero: { name: name || 'Aventureiro', cls: CLASSES[cls] ? cls : 'guerreiro', xp: 0, hp: maxHp(1), gold: 0, attrs },
+      quests: [],
+      rewards: [
+        { id: uid(), title: 'Poção de Vida', cost: 25, heal: 20, builtin: true },
+        { id: uid(), title: 'Um episódio de série', cost: 50 },
+        { id: uid(), title: 'Sobremesa favorita', cost: 80 },
+      ],
+      achievements: {},
+      log: [],
+      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0 },
+      lastProcessed: key,
+      createdAt: key,
+    };
+    addLog(state, '🌅', `${state.hero.name}, o ${CLASSES[state.hero.cls].name}, inicia sua jornada!`);
+    return state;
+  }
+
+  function addLog(state, icon, text, ts) {
+    state.log.unshift({ ts: ts || Date.now(), icon, text });
+    if (state.log.length > MAX_LOG) state.log.length = MAX_LOG;
+  }
+
+  function findQuest(state, id) {
+    return state.quests.find((q) => q.id === id);
+  }
+
+  function addQuest(state, data, today) {
+    const key = today || todayKey();
+    const quest = {
+      id: uid(),
+      title: String(data.title || '').trim() || 'Missão sem nome',
+      type: ['daily', 'habit', 'todo'].includes(data.type) ? data.type : 'daily',
+      attr: ATTRIBUTES[data.attr] ? data.attr : 'str',
+      difficulty: DIFFICULTY[data.difficulty] ? data.difficulty : 'medium',
+      createdAt: key,
+    };
+    if (quest.type === 'daily') {
+      const days = Array.isArray(data.days) ? data.days.filter((d) => d >= 0 && d <= 6) : [];
+      quest.days = days.length ? [...new Set(days)].sort() : [0, 1, 2, 3, 4, 5, 6];
+      quest.streak = 0;
+      quest.bestStreak = 0;
+      quest.completions = [];
+    } else if (quest.type === 'habit') {
+      quest.polarity = data.polarity === 'bad' ? 'bad' : 'good';
+      quest.count = 0;
+      quest.countDate = key;
+    } else {
+      quest.done = false;
+    }
+    state.quests.push(quest);
+    return quest;
+  }
+
+  function removeQuest(state, id) {
+    state.quests = state.quests.filter((q) => q.id !== id);
+  }
+
+  function isScheduled(quest, key) {
+    return quest.type === 'daily' && quest.days.includes(dayOfWeek(key));
+  }
+
+  function isDoneOn(quest, key) {
+    if (quest.type === 'daily') return quest.completions.includes(key);
+    if (quest.type === 'todo') return quest.done;
+    return false;
+  }
+
+  function habitCount(quest, key) {
+    return quest.countDate === key ? quest.count : 0;
+  }
+
+  // ---------- Recompensas e dano ----------
+
+  function computeReward(state, quest) {
+    const diff = DIFFICULTY[quest.difficulty];
+    const streak = quest.type === 'daily' ? Math.min(quest.streak, STREAK_BONUS_CAP) : 0;
+    const streakMult = 1 + streak * STREAK_BONUS_PER_DAY;
+    const classMult = CLASSES[state.hero.cls].attr === quest.attr ? 1 + CLASS_BONUS : 1;
+    return {
+      xp: Math.round(diff.xp * streakMult * classMult),
+      gold: Math.round(diff.gold * streakMult),
+    };
+  }
+
+  function grant(state, attr, xp, gold) {
+    const hero = state.hero;
+    const beforeLevel = heroLevel(state);
+    const beforeAttr = levelFromXp(hero.attrs[attr], ATTR_BASE);
+    hero.xp += xp;
+    hero.attrs[attr] += xp;
+    hero.gold += gold;
+    state.stats.goldEarned += gold;
+    const level = heroLevel(state);
+    const attrLevel = levelFromXp(hero.attrs[attr], ATTR_BASE);
+    const events = { xp, gold, levelUp: null, attrUp: null };
+    if (level > beforeLevel) {
+      hero.hp = maxHp(level);
+      events.levelUp = level;
+      addLog(state, '⭐', `Subiu para o nível ${level}! Vida restaurada.`);
+    }
+    if (attrLevel > beforeAttr) {
+      events.attrUp = { attr, level: attrLevel };
+      addLog(state, ATTRIBUTES[attr].icon, `${ATTRIBUTES[attr].name} chegou ao nível ${attrLevel}.`);
+    }
+    return events;
+  }
+
+  function revoke(state, attr, xp, gold) {
+    const hero = state.hero;
+    hero.xp = Math.max(0, hero.xp - xp);
+    hero.attrs[attr] = Math.max(0, hero.attrs[attr] - xp);
+    hero.gold = Math.max(0, hero.gold - gold);
+    state.stats.goldEarned = Math.max(0, state.stats.goldEarned - gold);
+    hero.hp = Math.min(hero.hp, maxHp(heroLevel(state)));
+  }
+
+  // Aplica dano; ao chegar a 0 de vida o herói é derrotado:
+  // perde o progresso do nível atual e metade do ouro, e volta com vida cheia.
+  function damage(state, amount, reason) {
+    const hero = state.hero;
+    hero.hp -= amount;
+    if (hero.hp > 0) return { damage: amount, defeated: false };
+    const level = heroLevel(state);
+    const lostGold = Math.floor(hero.gold / 2);
+    hero.xp = xpForLevel(level);
+    hero.gold -= lostGold;
+    hero.hp = maxHp(level);
+    state.stats.defeats++;
+    addLog(state, '💀', `Derrotado${reason ? ` por ${reason}` : ''}! Perdeu o progresso do nível e ${lostGold} de ouro.`);
+    return { damage: amount, defeated: true, lostGold };
+  }
+
+  function heal(state, amount) {
+    const hero = state.hero;
+    const max = maxHp(heroLevel(state));
+    const before = hero.hp;
+    hero.hp = Math.min(max, hero.hp + amount);
+    return hero.hp - before;
+  }
+
+  // ---------- Ações ----------
+
+  function completeQuest(state, id, today) {
+    const key = today || todayKey();
+    const quest = findQuest(state, id);
+    if (!quest) return null;
+
+    if (quest.type === 'habit') {
+      if (quest.countDate !== key) {
+        quest.count = 0;
+        quest.countDate = key;
+      }
+      quest.count++;
+      if (quest.polarity === 'bad') {
+        const dmg = DIFFICULTY[quest.difficulty].damage;
+        const result = damage(state, dmg, quest.title);
+        if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${dmg} de vida.`);
+        return { type: 'damage', ...result, achievements: checkAchievements(state) };
+      }
+      const reward = computeReward(state, quest);
+      const events = grant(state, quest.attr, reward.xp, reward.gold);
+      state.stats.completed++;
+      addLog(state, '✨', `"${quest.title}": +${reward.xp} XP, +${reward.gold} ouro.`);
+      return { type: 'reward', ...events, achievements: checkAchievements(state) };
+    }
+
+    if (isDoneOn(quest, key)) return null;
+    if (quest.type === 'daily') {
+      quest.streak++;
+      quest.bestStreak = Math.max(quest.bestStreak, quest.streak);
+      state.stats.bestStreak = Math.max(state.stats.bestStreak, quest.streak);
+      quest.completions.push(key);
+      if (quest.completions.length > 60) quest.completions.shift();
+    } else {
+      quest.done = true;
+      quest.doneAt = key;
+    }
+    const reward = computeReward(state, quest);
+    quest.lastGrant = { key, xp: reward.xp, gold: reward.gold };
+    const events = grant(state, quest.attr, reward.xp, reward.gold);
+    state.stats.completed++;
+    const streakText = quest.type === 'daily' && quest.streak > 1 ? ` (sequência de ${quest.streak})` : '';
+    addLog(state, '✅', `Missão "${quest.title}" concluída${streakText}: +${reward.xp} XP, +${reward.gold} ouro.`);
+    return { type: 'reward', ...events, achievements: checkAchievements(state) };
+  }
+
+  function undoQuest(state, id, today) {
+    const key = today || todayKey();
+    const quest = findQuest(state, id);
+    if (!quest || quest.type === 'habit' || !isDoneOn(quest, key)) return false;
+    const g = quest.lastGrant;
+    if (quest.type === 'daily') {
+      if (!g || g.key !== key) return false;
+      quest.completions = quest.completions.filter((c) => c !== key);
+      quest.streak = Math.max(0, quest.streak - 1);
+    } else {
+      quest.done = false;
+      delete quest.doneAt;
+    }
+    if (g) revoke(state, quest.attr, g.xp, g.gold);
+    delete quest.lastGrant;
+    state.stats.completed = Math.max(0, state.stats.completed - 1);
+    addLog(state, '↩️', `Desfez "${quest.title}".`);
+    return true;
+  }
+
+  function addReward(state, title, cost) {
+    const reward = { id: uid(), title: String(title || '').trim() || 'Recompensa', cost: Math.max(1, Math.round(Number(cost) || 1)) };
+    state.rewards.push(reward);
+    return reward;
+  }
+
+  function removeReward(state, id) {
+    state.rewards = state.rewards.filter((r) => r.id !== id || r.builtin);
+  }
+
+  function buyReward(state, id) {
+    const reward = state.rewards.find((r) => r.id === id);
+    if (!reward) return { ok: false, reason: 'not-found' };
+    if (state.hero.gold < reward.cost) return { ok: false, reason: 'gold' };
+    if (reward.heal && state.hero.hp >= maxHp(heroLevel(state))) return { ok: false, reason: 'full-hp' };
+    state.hero.gold -= reward.cost;
+    state.stats.rewardsBought++;
+    let healed = 0;
+    if (reward.heal) healed = heal(state, reward.heal);
+    addLog(state, '🛒', `Comprou "${reward.title}" por ${reward.cost} ouro${healed ? ` (+${healed} vida)` : ''}.`);
+    return { ok: true, healed, achievements: checkAchievements(state) };
+  }
+
+  // Processa os dias que passaram desde a última abertura: diárias não feitas
+  // causam dano e zeram a sequência; cada noite de descanso recupera um pouco de vida.
+  function processRollover(state, today) {
+    const key = today || todayKey();
+    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0 };
+    if (!state.lastProcessed || state.lastProcessed >= key) {
+      if (!state.lastProcessed) state.lastProcessed = key;
+      return summary;
+    }
+    let day = state.lastProcessed;
+    const earliest = addDays(key, -MAX_CATCHUP_DAYS);
+    if (day < earliest) day = earliest;
+    for (; day < key; day = addDays(day, 1)) {
+      summary.days++;
+      state.quests.forEach((q) => {
+        if (q.type !== 'daily' || q.createdAt > day || !isScheduled(q, day) || isDoneOn(q, day)) return;
+        q.streak = 0;
+        const dmg = DIFFICULTY[q.difficulty].damage;
+        summary.missed.push({ title: q.title, day, damage: dmg });
+        summary.damage += dmg;
+        const result = damage(state, dmg, `"${q.title}" esquecida`);
+        if (result.defeated) summary.defeated = true;
+      });
+      summary.healed += heal(state, Math.ceil(maxHp(heroLevel(state)) * 0.1));
+    }
+    state.quests.forEach((q) => {
+      if (q.type === 'habit' && q.countDate !== key) {
+        q.count = 0;
+        q.countDate = key;
+      }
+    });
+    if (summary.missed.length) {
+      addLog(state, '⚔️', `Missões perdidas enquanto esteve fora: ${summary.missed.length} (−${summary.damage} vida).`);
+    }
+    state.lastProcessed = key;
+    return summary;
+  }
+
+  // ---------- Conquistas ----------
+
+  const ACHIEVEMENTS = [
+    { id: 'first-quest', icon: '🗡️', name: 'Primeiro Passo', desc: 'Conclua sua primeira missão.', check: (s) => s.stats.completed >= 1 },
+    { id: 'quests-10', icon: '🛡️', name: 'Aprendiz', desc: 'Conclua 10 missões.', check: (s) => s.stats.completed >= 10 },
+    { id: 'quests-100', icon: '🏰', name: 'Veterano', desc: 'Conclua 100 missões.', check: (s) => s.stats.completed >= 100 },
+    { id: 'quests-500', icon: '🐉', name: 'Lenda Viva', desc: 'Conclua 500 missões.', check: (s) => s.stats.completed >= 500 },
+    { id: 'streak-7', icon: '🔥', name: 'Semana Implacável', desc: 'Sequência de 7 numa diária.', check: (s) => s.stats.bestStreak >= 7 },
+    { id: 'streak-30', icon: '☄️', name: 'Disciplina de Ferro', desc: 'Sequência de 30 numa diária.', check: (s) => s.stats.bestStreak >= 30 },
+    { id: 'level-5', icon: '⭐', name: 'Ascensão', desc: 'Alcance o nível 5.', check: (s) => heroLevel(s) >= 5 },
+    { id: 'level-10', icon: '🌟', name: 'Herói do Reino', desc: 'Alcance o nível 10.', check: (s) => heroLevel(s) >= 10 },
+    { id: 'gold-1000', icon: '💰', name: 'Tesouro do Dragão', desc: 'Ganhe 1000 de ouro no total.', check: (s) => s.stats.goldEarned >= 1000 },
+    { id: 'first-reward', icon: '🎁', name: 'Merecido', desc: 'Compre uma recompensa na loja.', check: (s) => s.stats.rewardsBought >= 1 },
+    { id: 'balanced', icon: '⚖️', name: 'Equilíbrio', desc: 'Todos os atributos no nível 3.', check: (s) => Object.values(s.hero.attrs).every((x) => levelFromXp(x, ATTR_BASE) >= 3) },
+    { id: 'defeat', icon: '🪦', name: 'Renascido', desc: 'Seja derrotado e continue lutando.', check: (s) => s.stats.defeats >= 1 },
+  ];
+
+  function checkAchievements(state) {
+    const unlocked = [];
+    ACHIEVEMENTS.forEach((a) => {
+      if (!state.achievements[a.id] && a.check(state)) {
+        state.achievements[a.id] = Date.now();
+        unlocked.push(a);
+        addLog(state, '🏆', `Conquista desbloqueada: ${a.name}!`);
+      }
+    });
+    return unlocked;
+  }
+
+  // ---------- Persistência ----------
+
+  function validate(state) {
+    return !!(
+      state &&
+      state.version === VERSION &&
+      state.hero &&
+      typeof state.hero.xp === 'number' &&
+      Array.isArray(state.quests) &&
+      Array.isArray(state.rewards)
+    );
+  }
+
+  return {
+    VERSION,
+    ATTRIBUTES,
+    CLASSES,
+    DIFFICULTY,
+    ACHIEVEMENTS,
+    ATTR_BASE,
+    todayKey,
+    addDays,
+    dayOfWeek,
+    xpForLevel,
+    levelFromXp,
+    levelProgress,
+    maxHp,
+    heroLevel,
+    createState,
+    addLog,
+    addQuest,
+    removeQuest,
+    findQuest,
+    isScheduled,
+    isDoneOn,
+    habitCount,
+    computeReward,
+    completeQuest,
+    undoQuest,
+    damage,
+    heal,
+    addReward,
+    removeReward,
+    buyReward,
+    processRollover,
+    checkAchievements,
+    validate,
+  };
+});
+</script>
+  <script>
+// Interface: renderiza o estado e liga os botões às regras de game.js.
+(function () {
+  'use strict';
+
+  const G = window.RoutineRPG;
+  const STORAGE_KEY = 'rotina-rpg:v1';
+  const TAB_KEY = 'rotina-rpg:tab';
+  const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const TABS = [
+    { id: 'quests', icon: '📜', name: 'Missões' },
+    { id: 'shop', icon: '🛒', name: 'Loja' },
+    { id: 'achievements', icon: '🏆', name: 'Conquistas' },
+    { id: 'log', icon: '📖', name: 'Diário' },
+    { id: 'hero', icon: '⚙️', name: 'Herói' },
+  ];
+
+  const app = document.getElementById('app');
+  const modal = document.getElementById('modal');
+  const toasts = document.getElementById('toasts');
+
+  let state = load();
+  let tab = readTab();
+
+  // ---------- Persistência ----------
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      return G.validate(data) ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      toast('⚠️', 'Não foi possível salvar no navegador.');
+    }
+  }
+
+  function readTab() {
+    try {
+      const t = localStorage.getItem(TAB_KEY);
+      return TABS.some((x) => x.id === t) ? t : 'quests';
+    } catch (e) {
+      return 'quests';
+    }
+  }
+
+  function setTab(t) {
+    tab = t;
+    try {
+      localStorage.setItem(TAB_KEY, t);
+    } catch (e) {
+      /* preferência opcional */
+    }
+    render();
+  }
+
+  // ---------- Utilidades ----------
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function pct(a, b) {
+    return b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0;
+  }
+
+  function toast(icon, text, kind) {
+    const el = document.createElement('div');
+    el.className = `toast ${kind || ''}`;
+    el.innerHTML = `<span class="toast-icon">${icon}</span><span>${esc(text)}</span>`;
+    toasts.appendChild(el);
+    while (toasts.children.length > 3) toasts.firstChild.remove();
+    setTimeout(() => el.classList.add('out'), 3200);
+    setTimeout(() => el.remove(), 3700);
+  }
+
+  function announce(result) {
+    if (!result) return;
+    if (result.type === 'damage') {
+      if (result.defeated) toast('💀', `Derrotado! Perdeu o progresso do nível e ${result.lostGold} de ouro.`, 'bad');
+      else toast('🩸', `−${result.damage} de vida`, 'bad');
+    } else if (result.type === 'reward') {
+      toast('✨', `+${result.xp} XP  ·  +${result.gold} ouro`);
+      if (result.attrUp) {
+        const a = G.ATTRIBUTES[result.attrUp.attr];
+        toast(a.icon, `${a.name} subiu para o nível ${result.attrUp.level}!`, 'good');
+      }
+      if (result.levelUp) levelUpModal(result.levelUp);
+    }
+    (result.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
+  }
+
+  function act(fn) {
+    const result = fn();
+    save();
+    render();
+    return result;
+  }
+
+  // Mantém o dia em dia mesmo com a aba aberta durante a meia-noite.
+  function checkDay() {
+    if (!state) return;
+    const summary = G.processRollover(state, G.todayKey());
+    if (summary.days) {
+      save();
+      render();
+      if (summary.missed.length || summary.healed) rolloverModal(summary);
+    }
+  }
+
+  // ---------- Render ----------
+
+  function render() {
+    if (!state) {
+      app.innerHTML = creationView();
+      return;
+    }
+    app.innerHTML = `
+      ${heroCard()}
+      <nav class="tabs" role="tablist">
+        ${TABS.map((t) => `<button role="tab" class="tab ${t.id === tab ? 'active' : ''}" aria-selected="${t.id === tab}" data-action="tab" data-id="${t.id}"><span>${t.icon}</span><span class="tab-label">${t.name}</span></button>`).join('')}
+      </nav>
+      <section class="panel">${({ quests: questsView, shop: shopView, achievements: achievementsView, log: logView, hero: heroView })[tab]()}</section>
+    `;
+  }
+
+  function creationView() {
+    return `
+      <section class="creation">
+        <h1 class="logo">Rotina RPG</h1>
+        <p class="lead">Sua rotina é a aventura. Cada hábito vira missão, cada dia vira XP.</p>
+        <form id="create-form" class="card">
+          <label class="field">
+            <span>Nome do herói</span>
+            <input name="name" maxlength="24" required placeholder="Ex.: Aria" autocomplete="off">
+          </label>
+          <fieldset class="field">
+            <legend>Escolha sua classe <small>(+20% XP no atributo da classe)</small></legend>
+            <div class="class-grid">
+              ${Object.entries(G.CLASSES).map(([id, c], i) => `
+                <label class="class-option">
+                  <input type="radio" name="cls" value="${id}" ${i === 0 ? 'checked' : ''}>
+                  <span class="class-card">
+                    <span class="class-icon">${c.icon}</span>
+                    <strong>${c.name}</strong>
+                    <small>${G.ATTRIBUTES[c.attr].icon} ${G.ATTRIBUTES[c.attr].name}</small>
+                  </span>
+                </label>`).join('')}
+            </div>
+          </fieldset>
+          <label class="check">
+            <input type="checkbox" name="starter" checked>
+            <span>Começar com algumas missões de exemplo</span>
+          </label>
+          <button class="btn primary big" type="submit">Iniciar jornada</button>
+        </form>
+        <p class="muted small">Seus dados ficam salvos apenas neste navegador.</p>
+      </section>
+    `;
+  }
+
+  function heroCard() {
+    const h = state.hero;
+    const cls = G.CLASSES[h.cls];
+    const prog = G.levelProgress(h.xp);
+    const max = G.maxHp(prog.level);
+    const lowHp = h.hp / max <= 0.3;
+    return `
+      <header class="hero card">
+        <div class="avatar" aria-hidden="true">${cls.icon}</div>
+        <div class="hero-info">
+          <div class="hero-top">
+            <h1>${esc(h.name)}</h1>
+            <span class="badge">Nv. ${prog.level} · ${cls.name}</span>
+            <span class="gold" title="Ouro">🪙 ${h.gold}</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">❤️</span>
+            <div class="bar hp ${lowHp ? 'low' : ''}" role="progressbar" aria-label="Vida" aria-valuenow="${h.hp}" aria-valuemax="${max}"><div style="width:${pct(h.hp, max)}%"></div></div>
+            <span class="bar-value">${h.hp}/${max}</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">⭐</span>
+            <div class="bar xp" role="progressbar" aria-label="Experiência" aria-valuenow="${prog.current}" aria-valuemax="${prog.needed}"><div style="width:${pct(prog.current, prog.needed)}%"></div></div>
+            <span class="bar-value">${prog.current}/${prog.needed}</span>
+          </div>
+        </div>
+        <div class="attrs">
+          ${Object.entries(G.ATTRIBUTES).map(([id, a]) => {
+            const p = G.levelProgress(h.attrs[id], G.ATTR_BASE);
+            return `<div class="attr ${cls.attr === id ? 'class-attr' : ''}" title="${a.name}: ${a.hint}">
+              <span class="attr-icon">${a.icon}</span>
+              <span class="attr-name">${a.name}</span>
+              <span class="attr-level">${p.level}</span>
+              <div class="bar mini"><div style="width:${pct(p.current, p.needed)}%"></div></div>
+            </div>`;
+          }).join('')}
+        </div>
+      </header>
+    `;
+  }
+
+  function questChips(q) {
+    const a = G.ATTRIBUTES[q.attr];
+    const d = G.DIFFICULTY[q.difficulty];
+    const chips = [`<span class="chip" title="${a.name}">${a.icon} ${a.name}</span>`, `<span class="chip diff-${q.difficulty}">${d.name}</span>`];
+    if (q.type === 'daily') {
+      if (q.streak > 0) chips.push(`<span class="chip streak" title="Sequência atual (melhor: ${q.bestStreak})">🔥 ${q.streak}</span>`);
+      if (q.days.length < 7) chips.push(`<span class="chip">${q.days.map((x) => WEEKDAYS[x]).join(' ')}</span>`);
+    }
+    if (q.type === 'habit' && q.polarity === 'bad') chips.push(`<span class="chip bad">−${d.damage} ❤️</span>`);
+    else if (!G.isDoneOn(q, G.todayKey())) {
+      const r = G.computeReward(state, q.type === 'daily' ? { ...q, streak: q.streak + 1 } : q);
+      chips.push(`<span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span>`);
+    }
+    return chips.join('');
+  }
+
+  function questItem(q, today) {
+    const done = G.isDoneOn(q, today);
+    let control;
+    if (q.type === 'habit') {
+      const count = G.habitCount(q, today);
+      control = q.polarity === 'bad'
+        ? `<button class="habit-btn bad" data-action="complete" data-id="${q.id}" aria-label="Registrar deslize: ${esc(q.title)}">−</button>`
+        : `<button class="habit-btn good" data-action="complete" data-id="${q.id}" aria-label="Registrar: ${esc(q.title)}">+</button>`;
+      if (count) control += `<span class="count">×${count}</span>`;
+    } else {
+      control = `<button class="check-btn ${done ? 'done' : ''}" data-action="${done ? 'undo' : 'complete'}" data-id="${q.id}" aria-pressed="${done}" aria-label="${done ? 'Desfazer' : 'Concluir'}: ${esc(q.title)}">${done ? '✓' : ''}</button>`;
+    }
+    return `
+      <li class="quest ${done ? 'is-done' : ''} ${q.type === 'habit' ? `habit-${q.polarity}` : ''}">
+        <div class="quest-control">${control}</div>
+        <div class="quest-body">
+          <span class="quest-title">${esc(q.title)}</span>
+          <div class="chips">${questChips(q)}</div>
+        </div>
+        <button class="icon-btn" data-action="delete-quest" data-id="${q.id}" aria-label="Apagar ${esc(q.title)}" title="Apagar">🗑️</button>
+      </li>
+    `;
+  }
+
+  function questGroup(title, subtitle, quests, today, empty) {
+    return `
+      <div class="group">
+        <div class="group-head">
+          <h2>${title}</h2>
+          ${subtitle ? `<span class="muted small">${subtitle}</span>` : ''}
+        </div>
+        ${quests.length ? `<ul class="quest-list">${quests.map((q) => questItem(q, today)).join('')}</ul>` : `<p class="empty">${empty}</p>`}
+      </div>
+    `;
+  }
+
+  function questsView() {
+    const today = G.todayKey();
+    const dailies = state.quests.filter((q) => q.type === 'daily');
+    const todayDailies = dailies.filter((q) => G.isScheduled(q, today));
+    const restDailies = dailies.filter((q) => !G.isScheduled(q, today));
+    const habits = state.quests.filter((q) => q.type === 'habit');
+    const todos = state.quests.filter((q) => q.type === 'todo');
+    const pending = todos.filter((q) => !q.done);
+    const finished = todos.filter((q) => q.done);
+    const doneCount = todayDailies.filter((q) => G.isDoneOn(q, today)).length;
+
+    return `
+      <div class="toolbar">
+        <div>
+          <strong>${WEEKDAYS[G.dayOfWeek(today)]}, ${today.split('-').reverse().join('/')}</strong>
+          <span class="muted small"> · diárias de hoje: ${doneCount}/${todayDailies.length}</span>
+        </div>
+        <button class="btn primary" data-action="new-quest">+ Nova missão</button>
+      </div>
+      ${todayDailies.length && doneCount === todayDailies.length ? '<p class="banner">🎉 Todas as diárias de hoje concluídas. O reino agradece!</p>' : ''}
+      ${questGroup('Diárias', 'Esquecer causa dano na virada do dia', todayDailies, today, 'Nenhuma diária para hoje.')}
+      ${restDailies.length ? `<details class="group-more"><summary>Diárias de outros dias (${restDailies.length})</summary><ul class="quest-list">${restDailies.map((q) => questItem(q, today)).join('')}</ul></details>` : ''}
+      ${questGroup('Hábitos', 'Toque quantas vezes quiser', habits, today, 'Crie hábitos bons (+) para ganhar XP, ou ruins (−) para se policiar.')}
+      ${questGroup('Tarefas', 'Missões únicas', pending, today, 'Nenhuma tarefa pendente.')}
+      ${finished.length ? `<details class="group-more"><summary>Tarefas concluídas (${finished.length})</summary><ul class="quest-list">${finished.map((q) => questItem(q, today)).join('')}</ul><button class="btn ghost small" data-action="clear-done">Limpar concluídas</button></details>` : ''}
+    `;
+  }
+
+  function shopView() {
+    const h = state.hero;
+    const max = G.maxHp(G.heroLevel(state));
+    return `
+      <div class="toolbar">
+        <div><strong>Loja do Taverneiro</strong><span class="muted small"> · você tem 🪙 ${h.gold}</span></div>
+        <button class="btn primary" data-action="new-reward">+ Nova recompensa</button>
+      </div>
+      <p class="muted small">Recompense-se de verdade: crie itens com o que você gosta e compre com o ouro das missões.</p>
+      <ul class="shop">
+        ${state.rewards.map((r) => {
+          const afford = h.gold >= r.cost;
+          const fullHp = r.heal && h.hp >= max;
+          return `<li class="shop-item card">
+            <span class="shop-icon">${r.heal ? '🧪' : '🎁'}</span>
+            <div class="shop-body">
+              <strong>${esc(r.title)}</strong>
+              ${r.heal ? `<span class="muted small">Recupera ${r.heal} de vida</span>` : ''}
+            </div>
+            <button class="btn ${afford && !fullHp ? 'gold-btn' : 'ghost'}" data-action="buy" data-id="${r.id}" ${afford && !fullHp ? '' : 'disabled'}>🪙 ${r.cost}</button>
+            ${r.builtin ? '' : `<button class="icon-btn" data-action="delete-reward" data-id="${r.id}" aria-label="Remover ${esc(r.title)}" title="Remover">🗑️</button>`}
+          </li>`;
+        }).join('')}
+      </ul>
+    `;
+  }
+
+  function achievementsView() {
+    const total = G.ACHIEVEMENTS.length;
+    const got = G.ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length;
+    return `
+      <div class="toolbar"><div><strong>Conquistas</strong><span class="muted small"> · ${got}/${total}</span></div></div>
+      <ul class="achievements">
+        ${G.ACHIEVEMENTS.map((a) => {
+          const ts = state.achievements[a.id];
+          return `<li class="achievement card ${ts ? 'unlocked' : ''}">
+            <span class="ach-icon">${ts ? a.icon : '🔒'}</span>
+            <div><strong>${a.name}</strong><p class="muted small">${a.desc}</p>
+            ${ts ? `<span class="small gold-text">Desbloqueada em ${new Date(ts).toLocaleDateString('pt-BR')}</span>` : ''}</div>
+          </li>`;
+        }).join('')}
+      </ul>
+    `;
+  }
+
+  function logView() {
+    return `
+      <div class="toolbar"><div><strong>Diário de Aventura</strong></div></div>
+      <ul class="log">
+        ${state.log.map((e) => `<li><span class="log-icon">${e.icon}</span><span class="log-text">${esc(e.text)}</span><time class="muted small">${new Date(e.ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></li>`).join('')}
+      </ul>
+    `;
+  }
+
+  function heroView() {
+    const s = state.stats;
+    return `
+      <div class="toolbar"><div><strong>Ficha do Herói</strong></div></div>
+      <div class="stats-grid">
+        <div class="stat card"><span class="stat-value">${s.completed}</span><span class="muted small">missões concluídas</span></div>
+        <div class="stat card"><span class="stat-value">${s.bestStreak}</span><span class="muted small">melhor sequência</span></div>
+        <div class="stat card"><span class="stat-value">${s.goldEarned}</span><span class="muted small">ouro ganho</span></div>
+        <div class="stat card"><span class="stat-value">${s.defeats}</span><span class="muted small">derrotas</span></div>
+      </div>
+      <div class="card rules">
+        <h2>Como funciona</h2>
+        <ul>
+          <li><strong>Diárias</strong> dão XP e ouro; cada dia seguido aumenta a recompensa em 10% (até +100%).</li>
+          <li>Diária esquecida tira vida na virada do dia e zera a sequência. Cada noite de descanso recupera 10% da vida.</li>
+          <li>Com a vida em 0 você é <strong>derrotado</strong>: perde o progresso do nível atual e metade do ouro.</li>
+          <li>Subir de nível restaura a vida e aumenta a vida máxima.</li>
+          <li>Missões do atributo da sua classe rendem +20% de XP.</li>
+        </ul>
+      </div>
+      <div class="card settings">
+        <h2>Configurações</h2>
+        <form id="rename-form" class="inline-form">
+          <input name="name" maxlength="24" value="${esc(state.hero.name)}" aria-label="Nome do herói" required>
+          <button class="btn" type="submit">Renomear</button>
+        </form>
+        <div class="btn-row">
+          <button class="btn" data-action="export">⬇️ Exportar progresso</button>
+          <label class="btn">⬆️ Importar<input type="file" accept="application/json,.json" id="import-file" hidden></label>
+          <button class="btn danger" data-action="reset">Recomeçar do zero</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------- Modais ----------
+
+  function openModal(html) {
+    modal.innerHTML = `<div class="modal-inner">${html}</div>`;
+    if (!modal.open) modal.showModal();
+    const first = modal.querySelector('input:not([type=hidden]), select, button');
+    if (first) first.focus();
+  }
+
+  function closeModal() {
+    if (modal.open) modal.close();
+  }
+
+  function questModal() {
+    const attrOptions = Object.entries(G.ATTRIBUTES).map(([id, a]) => `<option value="${id}">${a.icon} ${a.name} — ${a.hint}</option>`).join('');
+    const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`).join('');
+    openModal(`
+      <form id="quest-form" method="dialog">
+        <h2>Nova missão</h2>
+        <label class="field"><span>O que você vai fazer?</span><input name="title" maxlength="80" required placeholder="Ex.: Caminhar 30 minutos" autocomplete="off"></label>
+        <fieldset class="field">
+          <legend>Tipo</legend>
+          <div class="segmented">
+            <label><input type="radio" name="type" value="daily" checked><span>📅 Diária</span></label>
+            <label><input type="radio" name="type" value="habit"><span>🔁 Hábito</span></label>
+            <label><input type="radio" name="type" value="todo"><span>📌 Tarefa</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="field only-daily">
+          <legend>Dias da semana</legend>
+          <div class="weekdays">
+            ${WEEKDAYS.map((d, i) => `<label><input type="checkbox" name="days" value="${i}" checked><span>${d}</span></label>`).join('')}
+          </div>
+        </fieldset>
+        <fieldset class="field only-habit" hidden>
+          <legend>Esse hábito é…</legend>
+          <div class="segmented">
+            <label><input type="radio" name="polarity" value="good" checked><span>👍 Bom (+XP)</span></label>
+            <label><input type="radio" name="polarity" value="bad"><span>👎 Ruim (−vida)</span></label>
+          </div>
+        </fieldset>
+        <label class="field"><span>Atributo treinado</span><select name="attr">${attrOptions}</select></label>
+        <label class="field"><span>Dificuldade</span><select name="difficulty">${diffOptions}</select></label>
+        <div class="btn-row end">
+          <button class="btn ghost" type="button" data-action="close-modal">Cancelar</button>
+          <button class="btn primary" type="submit">Criar missão</button>
+        </div>
+      </form>
+    `);
+  }
+
+  function rewardModal() {
+    openModal(`
+      <form id="reward-form" method="dialog">
+        <h2>Nova recompensa</h2>
+        <label class="field"><span>Recompensa</span><input name="title" maxlength="60" required placeholder="Ex.: Uma hora de videogame" autocomplete="off"></label>
+        <label class="field"><span>Preço em ouro</span><input name="cost" type="number" min="1" max="99999" value="50" required></label>
+        <div class="btn-row end">
+          <button class="btn ghost" type="button" data-action="close-modal">Cancelar</button>
+          <button class="btn primary" type="submit">Adicionar à loja</button>
+        </div>
+      </form>
+    `);
+  }
+
+  function confirmModal(text, confirmLabel, onConfirm) {
+    pendingConfirm = onConfirm;
+    openModal(`
+      <h2>Tem certeza?</h2>
+      <p>${esc(text)}</p>
+      <div class="btn-row end">
+        <button class="btn ghost" data-action="close-modal">Cancelar</button>
+        <button class="btn danger" data-action="confirm">${esc(confirmLabel)}</button>
+      </div>
+    `);
+  }
+  let pendingConfirm = null;
+
+  function levelUpModal(level) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">⭐</div>
+        <h2>Nível ${level}!</h2>
+        <p>Sua vida máxima subiu para ${G.maxHp(level)} e foi totalmente restaurada.</p>
+        <button class="btn primary" data-action="close-modal">Continuar a aventura</button>
+      </div>
+    `);
+  }
+
+  function rolloverModal(summary) {
+    const missed = summary.missed;
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">${summary.defeated ? '💀' : missed.length ? '⚔️' : '🌅'}</div>
+        <h2>${summary.defeated ? 'Você foi derrotado…' : missed.length ? 'Um novo dia, cicatrizes do anterior' : 'Bom dia, herói!'}</h2>
+        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${m.day.split('-').reverse().slice(0, 2).join('/')}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : '<p>Nenhuma diária esquecida. Continue assim!</p>'}
+        ${summary.defeated ? '<p>Você perdeu o progresso do nível atual e metade do ouro, mas está de pé novamente.</p>' : ''}
+        ${summary.healed ? `<p class="muted small">O descanso recuperou ${summary.healed} de vida.</p>` : ''}
+        <button class="btn primary" data-action="close-modal">Encarar o dia</button>
+      </div>
+    `);
+  }
+
+  // ---------- Missões iniciais ----------
+
+  function addStarterQuests() {
+    const today = G.todayKey();
+    [
+      { title: 'Beber 2 litros de água', type: 'daily', attr: 'vit', difficulty: 'easy' },
+      { title: 'Ler 20 páginas', type: 'daily', attr: 'int', difficulty: 'medium' },
+      { title: 'Treinar', type: 'daily', attr: 'str', difficulty: 'hard', days: [1, 3, 5] },
+      { title: 'Meditar 10 minutos', type: 'daily', attr: 'wis', difficulty: 'easy' },
+      { title: 'Alongar', type: 'habit', attr: 'str', difficulty: 'easy', polarity: 'good' },
+      { title: 'Rolar redes sociais sem parar', type: 'habit', attr: 'wis', difficulty: 'medium', polarity: 'bad' },
+      { title: 'Ligar para alguém querido', type: 'todo', attr: 'cha', difficulty: 'medium' },
+    ].forEach((q) => G.addQuest(state, q, today));
+  }
+
+  // ---------- Eventos ----------
+
+  app.addEventListener('click', handleClick);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+    else handleClick(e);
+  });
+
+  function handleClick(e) {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const today = G.todayKey();
+    switch (btn.dataset.action) {
+      case 'tab':
+        setTab(id);
+        break;
+      case 'complete':
+        checkDay();
+        announce(act(() => G.completeQuest(state, id, today)));
+        break;
+      case 'undo':
+        act(() => G.undoQuest(state, id, today));
+        break;
+      case 'delete-quest': {
+        const q = G.findQuest(state, id);
+        if (q) confirmModal(`Apagar a missão "${q.title}"?`, 'Apagar', () => act(() => G.removeQuest(state, id)));
+        break;
+      }
+      case 'clear-done':
+        act(() => (state.quests = state.quests.filter((q) => !(q.type === 'todo' && q.done))));
+        break;
+      case 'new-quest':
+        questModal();
+        break;
+      case 'new-reward':
+        rewardModal();
+        break;
+      case 'buy': {
+        const r = act(() => G.buyReward(state, id));
+        if (r.ok) {
+          toast('🛒', r.healed ? `+${r.healed} de vida` : 'Aproveite, você mereceu!', 'gold');
+          (r.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
+        }
+        break;
+      }
+      case 'delete-reward':
+        act(() => G.removeReward(state, id));
+        break;
+      case 'export':
+        exportState();
+        break;
+      case 'reset':
+        confirmModal('Todo o progresso deste herói será apagado. Exporte antes se quiser guardar.', 'Apagar tudo', () => {
+          state = null;
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch (err) {
+            /* nada a remover */
+          }
+          render();
+        });
+        break;
+      case 'confirm': {
+        const fn = pendingConfirm;
+        pendingConfirm = null;
+        closeModal();
+        if (fn) fn();
+        break;
+      }
+      case 'close-modal':
+        closeModal();
+        break;
+    }
+  }
+
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    const data = new FormData(form);
+    if (form.id === 'create-form') {
+      e.preventDefault();
+      state = G.createState(String(data.get('name')).trim(), data.get('cls'), G.todayKey());
+      if (data.get('starter')) addStarterQuests();
+      tab = 'quests';
+      save();
+      render();
+      toast(G.CLASSES[state.hero.cls].icon, 'Sua jornada começou!', 'good');
+    } else if (form.id === 'quest-form') {
+      e.preventDefault();
+      const type = data.get('type');
+      const days = data.getAll('days').map(Number);
+      if (type === 'daily' && !days.length) {
+        toast('📅', 'Escolha pelo menos um dia da semana.', 'bad');
+        return;
+      }
+      act(() => G.addQuest(state, {
+        title: data.get('title'),
+        type,
+        days,
+        polarity: data.get('polarity'),
+        attr: data.get('attr'),
+        difficulty: data.get('difficulty'),
+      }, G.todayKey()));
+      closeModal();
+      toast('📜', 'Nova missão aceita!');
+    } else if (form.id === 'reward-form') {
+      e.preventDefault();
+      act(() => G.addReward(state, data.get('title'), data.get('cost')));
+      closeModal();
+    } else if (form.id === 'rename-form') {
+      e.preventDefault();
+      const name = String(data.get('name')).trim();
+      if (name) {
+        act(() => (state.hero.name = name));
+        toast('✒️', 'Nome atualizado.');
+      }
+    }
+  });
+
+  // Mostra os campos certos para o tipo de missão escolhido.
+  modal.addEventListener('change', (e) => {
+    const form = e.target.form;
+    if (!form || form.id !== 'quest-form' || e.target.name !== 'type') return;
+    const type = e.target.value;
+    form.querySelector('.only-daily').hidden = type !== 'daily';
+    form.querySelector('.only-habit').hidden = type !== 'habit';
+  });
+
+  app.addEventListener('change', (e) => {
+    if (e.target.id !== 'import-file' || !e.target.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!G.validate(data)) throw new Error('inválido');
+        state = data;
+        save();
+        checkDay();
+        render();
+        toast('⬆️', 'Progresso importado!', 'good');
+      } catch (err) {
+        toast('⚠️', 'Arquivo inválido.', 'bad');
+      }
+    };
+    reader.readAsText(e.target.files[0]);
+  });
+
+  function exportState() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rotina-rpg-${G.todayKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkDay();
+  });
+  setInterval(checkDay, 60 * 1000);
+
+  render();
+  checkDay();
+  window.RoutineRPGStarted = true;
+})();
+</script>
 </body>
 </html>

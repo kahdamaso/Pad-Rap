@@ -17,13 +17,19 @@ Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metad
 
 ## Rodando
 
-Não precisa de build nem instalação: abra o `index.html` no navegador.
+Não precisa instalar nada: dê dois cliques no `index.html`. Ele é um arquivo único, com tudo embutido, então funciona mesmo sozinho (dá para copiar só ele para outro lugar).
+
+> Baixou o ZIP do GitHub? Extraia antes de abrir. Use uma versão atual do Chrome, Edge ou Firefox.
+
 Se preferir um servidor local: `npm start` (http://localhost:5173).
 
 O progresso fica salvo no `localStorage` do navegador. Use **Herói → Exportar/Importar** para fazer backup ou levar para outro dispositivo.
 
 ## Estrutura
 
+O código-fonte fica em `src/`; o `index.html` é gerado a partir dele com `npm run build` (rode depois de editar qualquer arquivo de `src/` — o `npm test` avisa se esquecer).
+
+- `src/template.html` – esqueleto da página
 - `src/game.js` – regras do jogo (funções puras, sem DOM)
 - `src/app.js` – interface
 - `src/styles.css` – visual (tema claro e escuro automático)
