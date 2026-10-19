@@ -1,0 +1,11 @@
+{
+  "name": "rotina-rpg",
+  "version": "1.0.0",
+  "description": "Transforme sua rotina em um RPG: missões, XP, níveis, ouro e conquistas.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve -l 5173 .",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT"
+}
