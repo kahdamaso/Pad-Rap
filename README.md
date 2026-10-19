@@ -4,17 +4,21 @@ Transforme sua rotina em um RPG. Cada hábito vira missão, cada dia vira XP.
 
 ## Como jogar
 
-1. Crie seu herói e escolha uma classe (cada classe ganha +20% de XP no seu atributo).
+1. Crie seu herói em 3 etapas:
+   - **Quem é você:** nome e aparência do avatar (personagem, tom de pele e cor).
+   - **Classe:** cada classe ganha +20% de XP no seu atributo.
+   - **Desafios:** escolha até 3 dificuldades reais que você quer melhorar (procrastinação, sono, ansiedade, celular, estudos, finanças…). Elas viram características do avatar e já vêm com missões sugeridas.
 2. Cadastre suas missões:
    - **📅 Diárias** – repetem nos dias da semana escolhidos. Concluir dá XP e ouro; cada dia seguido aumenta a recompensa em 10% (até +100%). Esquecer causa dano na virada do dia e zera a sequência.
    - **🔁 Hábitos** – toque quantas vezes quiser. Bons (+) dão XP; ruins (−) tiram vida.
    - **📌 Tarefas** – missões únicas.
 3. Cada missão treina um atributo: 💪 Força, 📚 Inteligência, 🧘 Sabedoria, 🎭 Carisma, 🍎 Vitalidade.
 4. **👺 Chefe semanal** – toda segunda aparece um chefe. Cada missão causa nele dano igual ao XP ganho; hábitos ruins o curam. Vença até domingo para ganhar XP e ouro extras. Se ele sobreviver, foge e acerta um golpe. A vida do chefe depende das diárias agendadas na semana.
-5. **🎒 Equipamento** – subir de nível libera itens em 5 espaços (arma, escudo, elmo, amuleto e companheiro), do Comum ao Lendário. Eles aparecem no seu avatar e dão bônus: dano no chefe, defesa, XP, ouro e cura ao descansar.
-6. **🛒 Loja** – gaste o ouro com recompensas reais que você mesmo cria (ou numa Poção de Vida).
-7. **📈 Evolução** – gráficos de missões por dia, XP ao longo do tempo, diárias cumpridas por semana e atributos.
-8. Desbloqueie **conquistas** e acompanhe tudo no **Diário de Aventura**.
+5. **🧙 Personagem → Desafios** – missões ligadas a um desafio dão +15% de XP e o fazem evoluir: Fraqueza → Enfrentando → Dominando → Superada. Ao superar, a fraqueza vira uma **virtude** (ex.: Procrastinação → Iniciativa) com +10% de XP para sempre naquele atributo, e abre espaço para um novo desafio. Hábitos ruins ligados a ele fazem você perder progresso. A aparência pode ser trocada a qualquer momento.
+6. **🎒 Equipamento** – subir de nível libera itens em 5 espaços (arma, escudo, elmo, amuleto e companheiro), do Comum ao Lendário. Eles aparecem no seu avatar e dão bônus: dano no chefe, defesa, XP, ouro e cura ao descansar.
+7. **🛒 Loja** – gaste o ouro com recompensas reais que você mesmo cria (ou numa Poção de Vida).
+8. **📈 Evolução** – gráficos de missões por dia, XP ao longo do tempo, diárias cumpridas por semana e atributos.
+9. Desbloqueie **conquistas** e acompanhe tudo no **Diário de Aventura**.
 
 Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metade do ouro. Subir de nível restaura a vida; cada noite de descanso recupera 10% (mais com um companheiro).
 

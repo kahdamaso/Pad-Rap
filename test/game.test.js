@@ -249,3 +249,83 @@ test('migra progresso da versão 1 sem perder nada', () => {
   assert.equal(G.equippedItem(s, 'weapon').id, 'adaga');
   assert.equal(G.equippedItem(s, 'pet').id, 'gato');
 });
+
+// ---------- Dificuldades (características do avatar) ----------
+
+test('escolher dificuldades: no máximo 3 ativas, sem repetir', () => {
+  const s = fresh();
+  assert.ok(G.addTrait(s, 'sono', MONDAY));
+  assert.equal(G.addTrait(s, 'sono', MONDAY), null);
+  assert.ok(G.addTrait(s, 'ansiedade', MONDAY));
+  assert.ok(G.addTrait(s, 'celular', MONDAY));
+  assert.equal(G.addTrait(s, 'estudos', MONDAY), null);
+  assert.equal(G.addTrait(s, 'inexistente', MONDAY), null);
+});
+
+test('missões sugeridas ficam ligadas à dificuldade e não se repetem', () => {
+  const s = fresh();
+  G.addTrait(s, 'sono', MONDAY);
+  const added = G.addSuggestedQuests(s, 'sono', MONDAY);
+  assert.equal(added.length, 3);
+  assert.ok(added.every((q) => q.trait === 'sono' && q.attr === 'vit'));
+  assert.equal(G.addSuggestedQuests(s, 'sono', MONDAY).length, 0);
+});
+
+test('missão ligada dá +15% XP e faz a característica evoluir', () => {
+  const s = fresh('guerreiro');
+  G.addTrait(s, 'estudos', MONDAY);
+  const q = G.addQuest(s, { title: 'Estudar', type: 'todo', attr: 'int', difficulty: 'hard', trait: 'estudos' }, MONDAY);
+  assert.equal(G.computeReward(s, q).xp, 57); // 50 × 1,15, arredondado
+  const r = G.completeQuest(s, q.id, MONDAY);
+  assert.equal(r.trait.gained, 57);
+  assert.equal(G.findTrait(s, 'estudos').progress, 57);
+  G.undoQuest(s, q.id, MONDAY);
+  assert.equal(G.findTrait(s, 'estudos').progress, 0);
+});
+
+test('hábito ruim ligado faz perder progresso', () => {
+  const s = fresh();
+  G.addTrait(s, 'celular', MONDAY);
+  const bad = G.addQuest(s, { title: 'Rolar', type: 'habit', polarity: 'bad', difficulty: 'medium', trait: 'celular' }, MONDAY);
+  G.findTrait(s, 'celular').progress = 100;
+  const r = G.completeQuest(s, bad.id, MONDAY);
+  assert.equal(r.traitSetback, 15);
+  assert.equal(G.findTrait(s, 'celular').progress, 85);
+});
+
+test('superar uma dificuldade vira virtude com bônus permanente', () => {
+  const s = fresh('guerreiro');
+  G.addTrait(s, 'timidez', MONDAY);
+  const q = G.addQuest(s, { title: 'Conversar', type: 'todo', attr: 'cha', difficulty: 'epic', trait: 'timidez' }, MONDAY);
+  const t = G.findTrait(s, 'timidez');
+  t.progress = 1150;
+  const r = G.completeQuest(s, q.id, MONDAY);
+  assert.ok(r.trait.overcome);
+  assert.equal(t.overcome, MONDAY);
+  assert.equal(G.traitStage(t), G.TRAIT_STAGES.length - 1);
+  assert.ok(s.achievements['trait-1']);
+  assert.equal(G.activeTraits(s).length, 0, 'abre vaga para um novo desafio');
+  assert.equal(G.removeTrait(s, 'timidez'), false, 'virtudes não são removidas');
+  const other = G.addQuest(s, { title: 'Festa', type: 'todo', attr: 'cha', difficulty: 'hard' }, MONDAY);
+  assert.equal(G.computeReward(s, other).xp, 55); // +10% da virtude em Carisma
+});
+
+test('remover dificuldade desliga as missões dela', () => {
+  const s = fresh();
+  G.addTrait(s, 'financas', MONDAY);
+  const [q] = G.addSuggestedQuests(s, 'financas', MONDAY);
+  assert.ok(G.removeTrait(s, 'financas'));
+  assert.equal(q.trait, undefined);
+  assert.equal(G.findTrait(s, 'financas'), null);
+});
+
+test('migra progresso da versão 2 para a 3', () => {
+  const v2 = fresh();
+  delete v2.hero.look;
+  delete v2.hero.traits;
+  v2.version = 2;
+  const s = G.migrate(JSON.parse(JSON.stringify(v2)));
+  assert.ok(G.validate(s));
+  assert.deepEqual(s.hero.traits, []);
+  assert.equal(s.hero.look, null);
+});

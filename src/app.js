@@ -9,13 +9,49 @@
   const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const TABS = [
     { id: 'quests', icon: '📜', name: 'Missões' },
-    { id: 'gear', icon: '🎒', name: 'Equipamento' },
+    { id: 'character', icon: '🧙', name: 'Personagem' },
     { id: 'shop', icon: '🛒', name: 'Loja' },
     { id: 'stats', icon: '📈', name: 'Evolução' },
     { id: 'achievements', icon: '🏆', name: 'Conquistas' },
     { id: 'log', icon: '📖', name: 'Diário' },
     { id: 'hero', icon: '⚙️', name: 'Herói' },
   ];
+  // Personagens do avatar; todos aceitam tom de pele.
+  const CHARACTERS = [
+    { id: 'maga', emoji: '🧙‍♀️', name: 'Maga' },
+    { id: 'mago', emoji: '🧙‍♂️', name: 'Mago' },
+    { id: 'elfa', emoji: '🧝‍♀️', name: 'Elfa' },
+    { id: 'elfo', emoji: '🧝‍♂️', name: 'Elfo' },
+    { id: 'heroina', emoji: '🦸‍♀️', name: 'Heroína' },
+    { id: 'heroi', emoji: '🦸‍♂️', name: 'Herói' },
+    { id: 'ninja', emoji: '🥷', name: 'Ninja' },
+    { id: 'fada', emoji: '🧚‍♀️', name: 'Fada' },
+    { id: 'sereia', emoji: '🧜‍♀️', name: 'Sereia' },
+    { id: 'tritao', emoji: '🧜‍♂️', name: 'Tritão' },
+    { id: 'vampira', emoji: '🧛‍♀️', name: 'Vampira' },
+    { id: 'vampiro', emoji: '🧛‍♂️', name: 'Vampiro' },
+    { id: 'princesa', emoji: '👸', name: 'Princesa' },
+    { id: 'principe', emoji: '🤴', name: 'Príncipe' },
+    { id: 'pessoa', emoji: '🧑', name: 'Pessoa' },
+    { id: 'barbudo', emoji: '🧔', name: 'Barbudo' },
+  ];
+  const SKIN_TONES = [
+    { id: '', name: 'Padrão', swatch: '#f7c948' },
+    { id: '🏻', name: 'Clara', swatch: '#f6d7c3' },
+    { id: '🏼', name: 'Média-clara', swatch: '#e3b98f' },
+    { id: '🏽', name: 'Média', swatch: '#c38e5f' },
+    { id: '🏾', name: 'Média-escura', swatch: '#8f5b3a' },
+    { id: '🏿', name: 'Escura', swatch: '#5a3a26' },
+  ];
+  const AVATAR_COLORS = {
+    roxo: { name: 'Roxo', hex: '#9b7bff' },
+    azul: { name: 'Azul', hex: '#4c9bff' },
+    verde: { name: 'Verde', hex: '#3fbf7f' },
+    dourado: { name: 'Dourado', hex: '#e0a93b' },
+    vermelho: { name: 'Vermelho', hex: '#e5484d' },
+    rosa: { name: 'Rosa', hex: '#e86fb5' },
+  };
+
   // Posição de cada equipamento em volta do avatar.
   const AVATAR_SLOTS = { helmet: 'top', amulet: 'top-right', weapon: 'right', shield: 'left', pet: 'bottom-left' };
 
@@ -81,6 +117,18 @@
     return b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0;
   }
 
+  // O tom de pele entra logo depois do primeiro caractere do emoji (antes do ♀/♂).
+  function characterEmoji(look) {
+    const ch = CHARACTERS.find((c) => c.id === look.char) || CHARACTERS[0];
+    const tone = SKIN_TONES.some((t) => t.id === look.tone) ? look.tone : '';
+    const parts = Array.from(ch.emoji);
+    return parts[0] + tone + parts.slice(1).join('');
+  }
+
+  function defaultLook() {
+    return { char: CHARACTERS[0].id, tone: '', color: 'roxo' };
+  }
+
   function shortDate(key) {
     return key.split('-').reverse().slice(0, 2).join('/');
   }
@@ -101,6 +149,7 @@
       if (result.defeated) toast('💀', `Derrotado! Perdeu o progresso do nível e ${result.lostGold} de ouro.`, 'bad');
       else toast('🩸', `−${result.damage} de vida`, 'bad');
       if (result.bossHealed) toast(state.boss.icon, `${state.boss.name} recuperou ${result.bossHealed} de vida!`, 'bad');
+      if (result.traitSetback) toast('📉', `Seu desafio perdeu ${result.traitSetback} de progresso.`, 'bad');
     } else if (result.type === 'reward') {
       toast('✨', `+${result.xp} XP  ·  +${result.gold} ouro`);
       if (result.boss && !result.boss.defeated) toast(state.boss.icon, `−${result.boss.damage} no ${state.boss.name}`);
@@ -108,7 +157,12 @@
         const a = G.ATTRIBUTES[result.attrUp.attr];
         toast(a.icon, `${a.name} subiu para o nível ${result.attrUp.level}!`, 'good');
       }
-      if (result.boss && result.boss.defeated) bossDefeatedModal(result.boss, result.levelUp, result.newItems);
+      const tr = result.trait;
+      if (tr && tr.stage != null && !tr.overcome) {
+        toast(G.TRAITS[tr.id].icon, `${G.TRAITS[tr.id].name}: agora você está ${G.TRAIT_STAGES[tr.stage].name.toLowerCase()}!`, 'good');
+      }
+      if (tr && tr.overcome) virtueModal(tr.id);
+      else if (result.boss && result.boss.defeated) bossDefeatedModal(result.boss, result.levelUp, result.newItems);
       else if (result.levelUp) levelUpModal(result.levelUp, result.newItems);
     }
     (result.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
@@ -142,7 +196,7 @@
       app.innerHTML = creationView();
       return;
     }
-    const views = { quests: questsView, gear: gearView, shop: shopView, stats: statsView, achievements: achievementsView, log: logView, hero: heroView };
+    const views = { quests: questsView, character: characterView, shop: shopView, stats: statsView, achievements: achievementsView, log: logView, hero: heroView };
     app.innerHTML = `
       ${heroCard()}
       <nav class="tabs" role="tablist">
@@ -153,50 +207,154 @@
     if (tab === 'stats') drawCharts();
   }
 
+  // Seletores reutilizados na criação do herói e na edição do personagem.
+  function lookPickers(look) {
+    return `
+      <fieldset class="field">
+        <legend>Personagem</legend>
+        <div class="char-grid">
+          ${CHARACTERS.map((c) => `<label class="pick" title="${c.name}">
+            <input type="radio" name="char" value="${c.id}" ${look.char === c.id ? 'checked' : ''}>
+            <span class="pick-card"><span class="pick-emoji">${characterEmoji({ char: c.id, tone: look.tone })}</span><small>${c.name}</small></span>
+          </label>`).join('')}
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Tom de pele</legend>
+        <div class="swatches">
+          ${SKIN_TONES.map((t) => `<label class="swatch" title="${t.name}">
+            <input type="radio" name="tone" value="${t.id}" ${look.tone === t.id ? 'checked' : ''} aria-label="${t.name}">
+            <span style="background:${t.swatch}"></span>
+          </label>`).join('')}
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Cor do avatar</legend>
+        <div class="swatches">
+          ${Object.entries(AVATAR_COLORS).map(([id, c]) => `<label class="swatch" title="${c.name}">
+            <input type="radio" name="color" value="${id}" ${look.color === id ? 'checked' : ''} aria-label="${c.name}">
+            <span style="background:${c.hex}"></span>
+          </label>`).join('')}
+        </div>
+      </fieldset>
+    `;
+  }
+
+  function traitPicker(taken, max) {
+    return `
+      <div class="trait-grid" data-max="${max}">
+        ${Object.entries(G.TRAITS).map(([id, t]) => {
+          const used = taken.includes(id);
+          return `<label class="pick trait-pick ${used ? 'used' : ''}">
+            <input type="checkbox" name="traits" value="${id}" ${used ? 'disabled' : ''}>
+            <span class="pick-card">
+              <span class="trait-head"><span class="pick-emoji small-emoji">${t.icon}</span><strong>${t.name}</strong></span>
+              <small>${t.desc}</small>
+              <small class="muted">${G.ATTRIBUTES[t.attr].icon} ${G.ATTRIBUTES[t.attr].name} · vira <strong>${t.virtue.icon} ${t.virtue.name}</strong></small>
+            </span>
+          </label>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  function readLook(data) {
+    return { char: data.get('char') || CHARACTERS[0].id, tone: data.get('tone') || '', color: data.get('color') || 'roxo' };
+  }
+
+  function lookPreview(look) {
+    const cls = G.CLASSES[(app.querySelector('input[name=cls]:checked') || {}).value] || G.CLASSES.guerreiro;
+    const color = AVATAR_COLORS[look.color] ? AVATAR_COLORS[look.color].hex : AVATAR_COLORS.roxo.hex;
+    return `<div class="avatar big" style="--avatar:${color}"><span class="avatar-class">${characterEmoji(look)}</span><span class="avatar-item pos-right">${cls.icon}</span></div>`;
+  }
+
   function creationView() {
+    const look = defaultLook();
     return `
       <section class="creation">
         <h1 class="logo">Rotina RPG</h1>
         <p class="lead">Sua rotina é a aventura. Cada hábito vira missão, cada dia vira XP.</p>
-        <form id="create-form" class="card">
-          <label class="field">
-            <span>Nome do herói</span>
-            <input name="name" maxlength="24" required placeholder="Ex.: Aria" autocomplete="off">
-          </label>
-          <fieldset class="field">
-            <legend>Escolha sua classe <small>(+20% XP no atributo da classe)</small></legend>
-            <div class="class-grid">
-              ${Object.entries(G.CLASSES).map(([id, c], i) => `
-                <label class="class-option">
-                  <input type="radio" name="cls" value="${id}" ${i === 0 ? 'checked' : ''}>
-                  <span class="class-card">
-                    <span class="class-icon">${c.icon}</span>
-                    <strong>${c.name}</strong>
-                    <small>${G.ATTRIBUTES[c.attr].icon} ${G.ATTRIBUTES[c.attr].name}</small>
-                  </span>
-                </label>`).join('')}
+        <form id="create-form" class="card" novalidate>
+          <ol class="steps" aria-label="Etapas">
+            <li class="active" data-step-dot="1">Quem é você</li>
+            <li data-step-dot="2">Classe</li>
+            <li data-step-dot="3">Desafios</li>
+          </ol>
+          <div class="look-preview" aria-hidden="true">${lookPreview(look)}</div>
+
+          <div class="step" data-step="1">
+            <label class="field">
+              <span>Nome do herói</span>
+              <input name="name" maxlength="24" required placeholder="Ex.: Aria" autocomplete="off">
+            </label>
+            ${lookPickers(look)}
+            <div class="btn-row end"><button class="btn primary" type="button" data-action="step" data-id="2">Próximo →</button></div>
+          </div>
+
+          <div class="step" data-step="2" hidden>
+            <fieldset class="field">
+              <legend>Escolha sua classe <small>(+20% XP no atributo da classe)</small></legend>
+              <div class="class-grid">
+                ${Object.entries(G.CLASSES).map(([id, c], i) => `
+                  <label class="class-option">
+                    <input type="radio" name="cls" value="${id}" ${i === 0 ? 'checked' : ''}>
+                    <span class="class-card">
+                      <span class="class-icon">${c.icon}</span>
+                      <strong>${c.name}</strong>
+                      <small>${G.ATTRIBUTES[c.attr].icon} ${G.ATTRIBUTES[c.attr].name}</small>
+                    </span>
+                  </label>`).join('')}
+              </div>
+            </fieldset>
+            <div class="btn-row between">
+              <button class="btn ghost" type="button" data-action="step" data-id="1">← Voltar</button>
+              <button class="btn primary" type="button" data-action="step" data-id="3">Próximo →</button>
             </div>
-          </fieldset>
-          <label class="check">
-            <input type="checkbox" name="starter" checked>
-            <span>Começar com algumas missões de exemplo</span>
-          </label>
-          <button class="btn primary big" type="submit">Iniciar jornada</button>
+          </div>
+
+          <div class="step" data-step="3" hidden>
+            <fieldset class="field">
+              <legend>O que você quer melhorar? <small>(até ${G.MAX_ACTIVE_TRAITS}, pode pular)</small></legend>
+              <p class="muted small">Cada dificuldade vira uma característica do seu herói. Missões ligadas a ela dão +${Math.round(G.TRAIT_BONUS * 100)}% de XP e a fazem evoluir até virar uma virtude.</p>
+              ${traitPicker([], G.MAX_ACTIVE_TRAITS)}
+            </fieldset>
+            <label class="check">
+              <input type="checkbox" name="starter" checked>
+              <span>Criar missões sugeridas para começar</span>
+            </label>
+            <div class="btn-row between">
+              <button class="btn ghost" type="button" data-action="step" data-id="2">← Voltar</button>
+              <button class="btn primary" type="submit">Iniciar jornada</button>
+            </div>
+          </div>
         </form>
         <p class="muted small">Seus dados ficam salvos apenas neste navegador.</p>
       </section>
     `;
   }
 
-  function avatar(size) {
+  function avatar(size, lookOverride) {
     const cls = G.CLASSES[state.hero.cls];
+    const look = lookOverride || state.hero.look;
+    const color = look && AVATAR_COLORS[look.color] ? AVATAR_COLORS[look.color].hex : AVATAR_COLORS.roxo.hex;
     const badges = Object.entries(AVATAR_SLOTS)
       .map(([slot, pos]) => {
         const item = G.equippedItem(state, slot);
         return item ? `<span class="avatar-item pos-${pos} tier-${item.tier}" title="${esc(item.name)}">${item.icon}</span>` : '';
       })
       .join('');
-    return `<div class="avatar ${size || ''}" aria-hidden="true"><span class="avatar-class">${cls.icon}</span>${badges}</div>`;
+    return `<div class="avatar ${size || ''}" style="--avatar:${color}" aria-hidden="true"><span class="avatar-class">${look ? characterEmoji(look) : cls.icon}</span>${badges}</div>`;
+  }
+
+  function traitChips() {
+    const traits = state.hero.traits;
+    if (!traits.length) return '';
+    return `<div class="trait-chips">${traits.map((t) => {
+      const def = G.TRAITS[t.id];
+      return t.overcome
+        ? `<span class="chip virtue" title="Virtude conquistada">${def.virtue.icon} ${def.virtue.name}</span>`
+        : `<span class="chip trait stage-${G.traitStage(t)}" title="${G.TRAIT_STAGES[G.traitStage(t)].name}">${def.icon} ${def.name}</span>`;
+    }).join('')}</div>`;
   }
 
   function heroCard() {
@@ -224,6 +382,7 @@
             <div class="bar xp" role="progressbar" aria-label="Experiência" aria-valuenow="${prog.current}" aria-valuemax="${prog.needed}"><div style="width:${pct(prog.current, prog.needed)}%"></div></div>
             <span class="bar-value">${prog.current}/${prog.needed}</span>
           </div>
+          ${traitChips()}
         </div>
         <div class="attrs">
           ${Object.entries(G.ATTRIBUTES).map(([id, a]) => {
@@ -272,6 +431,10 @@
     const a = G.ATTRIBUTES[q.attr];
     const d = G.DIFFICULTY[q.difficulty];
     const chips = [`<span class="chip" title="${a.name}">${a.icon} ${a.name}</span>`, `<span class="chip diff-${q.difficulty}">${d.name}</span>`];
+    if (q.trait && G.activeTrait(state, q.trait)) {
+      const t = G.TRAITS[q.trait];
+      chips.push(`<span class="chip trait" title="Combate ${t.name} (+${Math.round(G.TRAIT_BONUS * 100)}% XP)">${t.icon} ${t.name}</span>`);
+    }
     if (q.type === 'daily') {
       if (q.streak > 0) chips.push(`<span class="chip streak" title="Sequência atual (melhor: ${q.bestStreak})">🔥 ${q.streak}</span>`);
       if (q.days.length < 7) chips.push(`<span class="chip">${q.days.map((x) => WEEKDAYS[x]).join(' ')}</span>`);
@@ -349,7 +512,70 @@
     `;
   }
 
-  function gearView() {
+  function traitCard(t) {
+    const def = G.TRAITS[t.id];
+    const p = G.traitProgress(t);
+    const stage = G.TRAIT_STAGES[p.stage];
+    const next = G.TRAIT_STAGES[p.stage + 1];
+    const linked = state.quests.filter((q) => q.trait === t.id).length;
+    return `<li class="trait-card card stage-${p.stage}">
+      <div class="trait-top">
+        <span class="trait-icon">${def.icon}</span>
+        <div class="trait-body">
+          <strong>${def.name}</strong>
+          <span class="small"><span class="stage-label">${stage.name}</span> · vira ${def.virtue.icon} ${def.virtue.name}</span>
+        </div>
+      </div>
+      <div class="bar-row">
+        <div class="bar trait-bar" role="progressbar" aria-label="Progresso contra ${def.name}" aria-valuenow="${p.current}" aria-valuemax="${p.needed}"><div style="width:${pct(p.current, p.needed)}%"></div></div>
+        <span class="bar-value">${p.current}/${p.needed}</span>
+      </div>
+      <span class="muted small">${linked ? `${linked} ${linked === 1 ? 'missão ligada' : 'missões ligadas'}` : 'Nenhuma missão ligada ainda'} · faltam ${p.needed - p.current} XP para ${next.name.toLowerCase()}</span>
+      <div class="btn-row">
+        <button class="btn small-btn" data-action="suggest-quests" data-id="${t.id}">+ Missões sugeridas</button>
+        <button class="btn small-btn ghost danger" data-action="remove-trait" data-id="${t.id}">Desistir</button>
+      </div>
+    </li>`;
+  }
+
+  function characterView() {
+    const active = G.activeTraits(state);
+    const virtues = state.hero.traits.filter((t) => t.overcome);
+    const cls = G.CLASSES[state.hero.cls];
+    return `
+      <div class="gear-top card">
+        ${avatar('big')}
+        <div>
+          <strong>${esc(state.hero.name)}</strong>
+          <p class="muted small">${cls.icon} ${cls.name} · nível ${G.heroLevel(state)}</p>
+          <button class="btn small-btn" data-action="edit-look">🎨 Editar aparência</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-head">
+          <h2>Desafios</h2>
+          <span class="muted small">Dificuldades que você está enfrentando (${active.length}/${G.MAX_ACTIVE_TRAITS})</span>
+        </div>
+        <p class="muted small">Missões ligadas a um desafio dão +${Math.round(G.TRAIT_BONUS * 100)}% de XP e o fazem evoluir: ${G.TRAIT_STAGES.map((st) => st.name).join(' → ')}. Ao superar, ele vira uma virtude com +10% de XP para sempre naquele atributo. Hábitos ruins ligados a ele fazem você perder progresso.</p>
+        ${active.length ? `<ul class="trait-list">${active.map(traitCard).join('')}</ul>` : '<p class="empty">Nenhum desafio ainda. Escolha algo que você quer melhorar na vida real.</p>'}
+        ${active.length < G.MAX_ACTIVE_TRAITS ? '<button class="btn primary add-trait" data-action="add-trait">+ Adicionar desafio</button>' : ''}
+      </div>
+
+      ${virtues.length ? `<div class="group">
+        <div class="group-head"><h2>Virtudes</h2><span class="muted small">Dificuldades que você superou</span></div>
+        <ul class="gear-list">${virtues.map((t) => {
+          const def = G.TRAITS[t.id];
+          return `<li class="gear-item card tier-4"><span class="gear-icon">${def.virtue.icon}</span>
+            <div class="gear-body"><strong>${def.virtue.name}</strong><span class="small muted">Superou ${def.name} em ${shortDate(t.overcome)} · +10% XP em ${G.ATTRIBUTES[def.attr].name}</span></div></li>`;
+        }).join('')}</ul>
+      </div>` : ''}
+
+      ${gearSection()}
+    `;
+  }
+
+  function gearSection() {
     const level = G.heroLevel(state);
     const b = G.bonuses(state);
     const summary = Object.entries(G.SLOTS)
@@ -359,19 +585,16 @@
       })
       .join('');
     return `
-      <div class="gear-top card">
-        ${avatar('big')}
-        <div>
-          <strong>Equipamento</strong>
-          <p class="muted small">Novos itens são liberados ao subir de nível e equipados automaticamente. Você pode trocar quando quiser.</p>
-          <div class="chips">${summary || '<span class="chip">Sem bônus ainda — suba de nível!</span>'}</div>
-        </div>
+      <div class="group-head gear-head">
+        <h2>Equipamento</h2>
+        <span class="muted small">Itens liberados ao subir de nível; troque quando quiser</span>
       </div>
+      <div class="chips gear-summary">${summary || '<span class="chip">Sem bônus ainda — suba de nível!</span>'}</div>
       ${Object.entries(G.SLOTS).map(([slot, s]) => {
         const items = G.EQUIPMENT.filter((i) => i.slot === slot);
         const current = G.equippedItem(state, slot);
         return `<div class="group">
-          <div class="group-head"><h2>${s.name}</h2><span class="muted small">${s.desc('X').replace('X', '…')}</span></div>
+          <div class="group-head"><h3>${s.name}</h3><span class="muted small">${s.desc('X').replace('X', '…')}</span></div>
           <ul class="gear-list">
             ${items.map((i) => {
               const unlocked = level >= i.level;
@@ -659,6 +882,7 @@
           <li>Subir de nível restaura a vida, aumenta a vida máxima e libera <strong>equipamentos</strong> com bônus.</li>
           <li>Toda semana aparece um <strong>chefe</strong>. Suas missões causam dano nele; hábitos ruins o curam. Se ele sobreviver até domingo, foge e acerta um golpe.</li>
           <li>Missões do atributo da sua classe rendem +20% de XP.</li>
+          <li>Escolha <strong>desafios</strong> (dificuldades reais) na aba Personagem. Missões ligadas a eles rendem +15% de XP e os fazem evoluir até virarem <strong>virtudes</strong>.</li>
         </ul>
       </div>
       <div class="card settings">
@@ -691,6 +915,7 @@
 
   function questModal() {
     const attrOptions = Object.entries(G.ATTRIBUTES).map(([id, a]) => `<option value="${id}">${a.icon} ${a.name} — ${a.hint}</option>`).join('');
+    const traitOptions = G.activeTraits(state).map((t) => `<option value="${t.id}">${G.TRAITS[t.id].icon} ${G.TRAITS[t.id].name}</option>`).join('');
     const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`).join('');
     openModal(`
       <form id="quest-form" method="dialog">
@@ -717,6 +942,7 @@
             <label><input type="radio" name="polarity" value="bad"><span>👎 Ruim (−vida)</span></label>
           </div>
         </fieldset>
+        ${traitOptions ? `<label class="field"><span>Combate qual desafio? <small>(+${Math.round(G.TRAIT_BONUS * 100)}% XP)</small></span><select name="trait"><option value="">Nenhum</option>${traitOptions}</select></label>` : ''}
         <label class="field"><span>Atributo treinado</span><select name="attr">${attrOptions}</select></label>
         <label class="field"><span>Dificuldade</span><select name="difficulty">${diffOptions}</select></label>
         <div class="btn-row end">
@@ -758,6 +984,53 @@
   function newItemsHtml(items) {
     if (!items || !items.length) return '';
     return `<p class="muted small">Novos equipamentos:</p><div class="new-items">${items.map((i) => `<span class="new-item tier-${i.tier}">${i.icon} ${esc(i.name)}</span>`).join('')}</div>`;
+  }
+
+  function virtueModal(id) {
+    const def = G.TRAITS[id];
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">${def.virtue.icon}</div>
+        <h2>Você superou ${esc(def.name)}!</h2>
+        <p>Sua fraqueza virou a virtude <strong>${def.virtue.name}</strong>: +10% de XP para sempre em ${G.ATTRIBUTES[def.attr].name}.</p>
+        <p class="muted small">Isso foi conquistado na vida real. Você pode escolher um novo desafio na aba Personagem.</p>
+        <button class="btn primary" data-action="close-modal">Que orgulho!</button>
+      </div>
+    `);
+  }
+
+  function lookModal() {
+    const look = state.hero.look || defaultLook();
+    openModal(`
+      <form id="look-form" method="dialog">
+        <h2>Aparência</h2>
+        <div class="look-preview" aria-hidden="true">${avatar('big', look)}</div>
+        ${lookPickers(look)}
+        <div class="btn-row end">
+          <button class="btn ghost" type="button" data-action="close-modal">Cancelar</button>
+          <button class="btn primary" type="submit">Salvar</button>
+        </div>
+      </form>
+    `);
+  }
+
+  function traitModal() {
+    const free = G.MAX_ACTIVE_TRAITS - G.activeTraits(state).length;
+    openModal(`
+      <form id="trait-form" method="dialog">
+        <h2>Novo desafio</h2>
+        <p class="muted small">Escolha ${free === 1 ? 'uma dificuldade' : `até ${free} dificuldades`} que você quer melhorar.</p>
+        ${traitPicker(state.hero.traits.map((t) => t.id), free)}
+        <label class="check">
+          <input type="checkbox" name="starter" checked>
+          <span>Criar as missões sugeridas</span>
+        </label>
+        <div class="btn-row end">
+          <button class="btn ghost" type="button" data-action="close-modal">Cancelar</button>
+          <button class="btn primary" type="submit">Aceitar desafio</button>
+        </div>
+      </form>
+    `);
   }
 
   function levelUpModal(level, items) {
@@ -836,6 +1109,25 @@
       case 'tab':
         setTab(id);
         break;
+      case 'step':
+        goToStep(btn.closest('form'), Number(id));
+        break;
+      case 'edit-look':
+        lookModal();
+        break;
+      case 'add-trait':
+        traitModal();
+        break;
+      case 'suggest-quests': {
+        const added = act(() => G.addSuggestedQuests(state, id, today));
+        toast(G.TRAITS[id].icon, added.length ? `${added.length} ${added.length === 1 ? 'missão criada' : 'missões criadas'} na aba Missões.` : 'Você já tem todas as missões sugeridas.');
+        break;
+      }
+      case 'remove-trait': {
+        const def = G.TRAITS[id];
+        confirmModal(`Desistir de enfrentar ${def.name}? O progresso será perdido e as missões continuam, mas sem o bônus.`, 'Desistir', () => act(() => G.removeTrait(state, id)));
+        break;
+      }
       case 'complete':
         checkDay();
         announce(act(() => G.completeQuest(state, id, today)));
@@ -916,14 +1208,52 @@
     }
   }
 
+  function goToStep(form, step) {
+    if (step > 1) {
+      const name = form.querySelector('input[name=name]');
+      if (!name.value.trim()) {
+        goToStep(form, 1);
+        name.focus();
+        toast('✒️', 'Dê um nome ao seu herói.', 'bad');
+        return;
+      }
+    }
+    form.querySelectorAll('[data-step]').forEach((el) => (el.hidden = Number(el.dataset.step) !== step));
+    form.querySelectorAll('[data-step-dot]').forEach((el) => {
+      const n = Number(el.dataset.stepDot);
+      el.classList.toggle('active', n === step);
+      el.classList.toggle('done', n < step);
+    });
+    form.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  function addTraits(ids, withQuests, today) {
+    ids.forEach((id) => {
+      if (G.addTrait(state, id, today) && withQuests) G.addSuggestedQuests(state, id, today);
+    });
+  }
+
   document.addEventListener('submit', (e) => {
     const form = e.target;
     const data = new FormData(form);
     if (form.id === 'create-form') {
       e.preventDefault();
+      const current = Number(form.querySelector('[data-step]:not([hidden])').dataset.step);
+      if (current < 3) {
+        goToStep(form, current + 1);
+        return;
+      }
       const today = G.todayKey();
-      state = G.createState(String(data.get('name')).trim(), data.get('cls'), today);
-      if (data.get('starter')) addStarterQuests();
+      const name = String(data.get('name') || '').trim();
+      if (!name) {
+        goToStep(form, 2);
+        return;
+      }
+      state = G.createState(name, data.get('cls'), today);
+      state.hero.look = readLook(data);
+      const traits = data.getAll('traits');
+      addTraits(traits, !!data.get('starter'), today);
+      if (data.get('starter') && !traits.length) addStarterQuests();
       G.processRollover(state, today); // invoca o primeiro chefe já com as missões
       tab = 'quests';
       save();
@@ -944,9 +1274,25 @@
         polarity: data.get('polarity'),
         attr: data.get('attr'),
         difficulty: data.get('difficulty'),
+        trait: data.get('trait'),
       }, G.todayKey()));
       closeModal();
       toast('📜', 'Nova missão aceita!');
+    } else if (form.id === 'look-form') {
+      e.preventDefault();
+      act(() => (state.hero.look = readLook(data)));
+      closeModal();
+      toast('🎨', 'Aparência atualizada!');
+    } else if (form.id === 'trait-form') {
+      e.preventDefault();
+      const ids = data.getAll('traits');
+      if (!ids.length) {
+        toast('🧭', 'Escolha pelo menos um desafio.', 'bad');
+        return;
+      }
+      act(() => addTraits(ids, !!data.get('starter'), G.todayKey()));
+      closeModal();
+      toast('⚔️', ids.length === 1 ? 'Desafio aceito!' : 'Desafios aceitos!', 'good');
     } else if (form.id === 'reward-form') {
       e.preventDefault();
       act(() => G.addReward(state, data.get('title'), data.get('cost')));
@@ -960,6 +1306,32 @@
       }
     }
   });
+
+  function onPickerChange(e) {
+    const form = e.target.form;
+    if (!form) return;
+    if (['char', 'tone', 'color', 'cls'].includes(e.target.name)) {
+      const look = readLook(new FormData(form));
+      const preview = form.querySelector('.look-preview');
+      if (preview) preview.innerHTML = form.id === 'create-form' ? lookPreview(look) : avatar('big', look);
+      // Os botões de personagem mostram o tom de pele escolhido.
+      if (e.target.name === 'tone') {
+        form.querySelectorAll('input[name=char]').forEach((input) => {
+          input.nextElementSibling.querySelector('.pick-emoji').textContent = characterEmoji({ char: input.value, tone: look.tone });
+        });
+      }
+    }
+    if (e.target.name === 'traits') {
+      const grid = e.target.closest('.trait-grid');
+      const max = Number(grid.dataset.max);
+      const checked = grid.querySelectorAll('input[name=traits]:checked').length;
+      grid.querySelectorAll('input[name=traits]').forEach((input) => {
+        if (!input.checked && !input.closest('.used')) input.disabled = checked >= max;
+      });
+    }
+  }
+  app.addEventListener('change', onPickerChange);
+  modal.addEventListener('change', onPickerChange);
 
   // Mostra os campos certos para o tipo de missão escolhido.
   modal.addEventListener('change', (e) => {

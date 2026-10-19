@@ -47,6 +47,8 @@
 
 html, body { margin: 0; }
 
+[hidden] { display: none !important; }
+
 body {
   background: radial-gradient(ellipse at top, var(--bg-2), var(--bg) 60%) fixed, var(--bg);
   color: var(--text);
@@ -121,6 +123,7 @@ h2 { font-size: 1.05rem; margin: 0; }
 
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .btn-row.end { justify-content: flex-end; }
+.btn-row.between { justify-content: space-between; }
 
 :focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 
@@ -184,7 +187,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; }
   place-items: center;
   font-size: 2.4rem;
   border-radius: 20px;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 35%, var(--card-2)), var(--card-2));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--avatar, var(--accent)) 40%, var(--card-2)), var(--card-2));
   border: 1px solid var(--border);
 }
 .hero-info { display: grid; gap: 6px; min-width: 0; }
@@ -555,6 +558,73 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   .hbars li { grid-template-columns: 1fr auto; }
   .hbar-track { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- Criação em etapas e seletores de aparência ---------- */
+
+.steps { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li { flex: 1; text-align: center; font-size: 0.78rem; color: var(--muted); padding-top: 8px; border-top: 3px solid var(--border); counter-increment: step; }
+.steps li::before { content: counter(step) ". "; }
+.steps li.active { color: var(--text); font-weight: 600; border-color: var(--accent); }
+.steps li.done { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.step { display: grid; gap: 16px; }
+.look-preview { display: flex; justify-content: center; }
+.look-preview .avatar.big { margin: 14px auto 6px; }
+
+.pick input, .swatch input { position: absolute; opacity: 0; pointer-events: none; }
+.pick-card {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.pick-card small { color: var(--muted); font-size: 0.72rem; }
+.pick-emoji { font-size: 1.9rem; line-height: 1.1; }
+.pick input:checked + .pick-card { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); transform: translateY(-2px); }
+.pick input:focus-visible + .pick-card { outline: 2px solid var(--accent-2); }
+.pick input:disabled + .pick-card { opacity: 0.45; cursor: not-allowed; }
+.char-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch span { display: block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--card); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+.swatch input:checked + span { box-shadow: 0 0 0 3px var(--accent); }
+.swatch input:focus-visible + span { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+
+.trait-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.trait-pick .pick-card { justify-items: start; text-align: left; padding: 10px 12px; gap: 3px; height: 100%; }
+.trait-pick .pick-card small { font-size: 0.78rem; }
+.trait-head { display: flex; align-items: center; gap: 8px; }
+.small-emoji { font-size: 1.3rem; }
+.trait-pick.used .pick-card::after { content: "Já escolhido"; font-size: 0.72rem; color: var(--muted); }
+
+/* ---------- Desafios e virtudes ---------- */
+
+.trait-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.chip.trait { color: var(--text); background: color-mix(in srgb, var(--stage, var(--hp)) 18%, var(--card-2)); }
+.chip.virtue { color: var(--text); background: color-mix(in srgb, var(--gold) 22%, var(--card-2)); }
+.stage-0 { --stage: #e5484d; }
+.stage-1 { --stage: #f2994a; }
+.stage-2 { --stage: #4c9bff; }
+.stage-3 { --stage: #3fbf7f; }
+
+.trait-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.trait-card { display: grid; gap: 8px; padding: 12px 14px; border-left: 4px solid var(--stage); }
+.trait-card .btn-row { margin-top: 0; }
+.trait-top { display: flex; align-items: center; gap: 10px; }
+.trait-icon { font-size: 1.8rem; }
+.trait-body { display: grid; }
+.stage-label { font-weight: 700; color: var(--text); }
+.trait-card .bar-row { grid-template-columns: 1fr auto; }
+.bar.trait-bar > div { background: var(--stage); }
+.add-trait { margin-top: 4px; }
+.group-head h3 { font-size: 0.95rem; margin: 0; font-family: Cinzel, Georgia, serif; }
+.gear-head { margin-top: 8px; }
+.gear-summary { margin-bottom: 14px; }
 
 .boot-msg { max-width: 520px; margin: 12vh auto 0; text-align: center; }
 .boot-msg h1 { font-size: 2rem; margin-bottom: 12px; }

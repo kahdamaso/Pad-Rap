@@ -7,7 +7,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const MAX_CATCHUP_DAYS = 7;
   const MAX_LOG = 150;
   const MAX_HISTORY_DAYS = 400;
@@ -39,6 +39,110 @@
   const CLASS_BONUS = 0.2;
   const STREAK_BONUS_PER_DAY = 0.1;
   const STREAK_BONUS_CAP = 10;
+
+  // ---------- Dificuldades (características do avatar) ----------
+  // Cada dificuldade real vira uma característica que evolui com as missões
+  // ligadas a ela, até ser superada e virar uma virtude.
+
+  const TRAITS = {
+    procrastinacao: {
+      name: 'Procrastinação', icon: '⏳', attr: 'wis', virtue: { name: 'Iniciativa', icon: '⚡' },
+      desc: 'Deixar tudo para depois.',
+      quests: [
+        { title: 'Fazer primeiro a tarefa mais difícil do dia', type: 'daily', difficulty: 'medium' },
+        { title: 'Ciclo de 25 minutos de foco', type: 'habit', polarity: 'good', difficulty: 'easy' },
+        { title: 'Adiar algo importante', type: 'habit', polarity: 'bad', difficulty: 'medium' },
+      ],
+    },
+    sedentarismo: {
+      name: 'Sedentarismo', icon: '🛋️', attr: 'str', virtue: { name: 'Vigor', icon: '🏃' },
+      desc: 'Passar o dia parado.',
+      quests: [
+        { title: 'Caminhar 20 minutos', type: 'daily', difficulty: 'medium' },
+        { title: 'Treinar', type: 'daily', difficulty: 'hard', days: [1, 3, 5] },
+        { title: 'Usar a escada em vez do elevador', type: 'habit', polarity: 'good', difficulty: 'easy' },
+      ],
+    },
+    sono: {
+      name: 'Sono desregulado', icon: '😴', attr: 'vit', virtue: { name: 'Descanso Pleno', icon: '🌙' },
+      desc: 'Dormir tarde ou mal.',
+      quests: [
+        { title: 'Deitar antes das 23h', type: 'daily', difficulty: 'medium' },
+        { title: 'Sem telas 30 minutos antes de dormir', type: 'daily', difficulty: 'medium' },
+        { title: 'Ficar no celular na cama', type: 'habit', polarity: 'bad', difficulty: 'easy' },
+      ],
+    },
+    alimentacao: {
+      name: 'Alimentação ruim', icon: '🍔', attr: 'vit', virtue: { name: 'Nutrição', icon: '🥗' },
+      desc: 'Comer mal ou pular refeições.',
+      quests: [
+        { title: 'Comer uma fruta', type: 'daily', difficulty: 'easy' },
+        { title: 'Beber 2 litros de água', type: 'daily', difficulty: 'easy' },
+        { title: 'Fast food ou besteira', type: 'habit', polarity: 'bad', difficulty: 'medium' },
+      ],
+    },
+    ansiedade: {
+      name: 'Ansiedade', icon: '🌪️', attr: 'wis', virtue: { name: 'Serenidade', icon: '🕊️' },
+      desc: 'Mente acelerada e preocupação.',
+      quests: [
+        { title: 'Respirar fundo por 5 minutos', type: 'daily', difficulty: 'easy' },
+        { title: 'Escrever o que estou sentindo', type: 'daily', difficulty: 'easy' },
+        { title: 'Pausa consciente', type: 'habit', polarity: 'good', difficulty: 'easy' },
+      ],
+    },
+    celular: {
+      name: 'Vício no celular', icon: '📱', attr: 'wis', virtue: { name: 'Presença', icon: '🎯' },
+      desc: 'Perder horas nas telas.',
+      quests: [
+        { title: 'Uma hora sem celular', type: 'daily', difficulty: 'medium' },
+        { title: 'Rolar redes sociais sem parar', type: 'habit', polarity: 'bad', difficulty: 'medium' },
+      ],
+    },
+    desorganizacao: {
+      name: 'Desorganização', icon: '🌀', attr: 'wis', virtue: { name: 'Ordem', icon: '📐' },
+      desc: 'Bagunça, atrasos e esquecimentos.',
+      quests: [
+        { title: 'Planejar o dia pela manhã', type: 'daily', difficulty: 'easy' },
+        { title: 'Arrumar o quarto por 10 minutos', type: 'daily', difficulty: 'easy' },
+      ],
+    },
+    estudos: {
+      name: 'Falta de foco nos estudos', icon: '📉', attr: 'int', virtue: { name: 'Erudição', icon: '🎓' },
+      desc: 'Dificuldade de estudar ou aprender.',
+      quests: [
+        { title: 'Estudar 30 minutos', type: 'daily', difficulty: 'medium' },
+        { title: 'Ler 10 páginas', type: 'daily', difficulty: 'easy' },
+      ],
+    },
+    timidez: {
+      name: 'Timidez e isolamento', icon: '🐚', attr: 'cha', virtue: { name: 'Coragem Social', icon: '🤝' },
+      desc: 'Evitar pessoas e conversas.',
+      quests: [
+        { title: 'Mandar mensagem para um amigo', type: 'daily', difficulty: 'easy' },
+        { title: 'Puxar conversa com alguém', type: 'habit', polarity: 'good', difficulty: 'medium' },
+      ],
+    },
+    financas: {
+      name: 'Gastos descontrolados', icon: '💸', attr: 'int', virtue: { name: 'Prudência', icon: '💰' },
+      desc: 'Dinheiro que some sem perceber.',
+      quests: [
+        { title: 'Anotar os gastos do dia', type: 'daily', difficulty: 'easy' },
+        { title: 'Compra por impulso', type: 'habit', polarity: 'bad', difficulty: 'medium' },
+      ],
+    },
+  };
+
+  // XP de missões ligadas necessário para cada estágio; o último é a superação.
+  const TRAIT_STAGES = [
+    { min: 0, name: 'Fraqueza' },
+    { min: 150, name: 'Enfrentando' },
+    { min: 500, name: 'Dominando' },
+    { min: 1200, name: 'Superada' },
+  ];
+  const MAX_ACTIVE_TRAITS = 3;
+  const TRAIT_BONUS = 0.15; // XP extra em missões ligadas a uma dificuldade
+  const VIRTUE_BONUS = 0.1; // XP extra no atributo de cada virtude conquistada
+  const BAD_HABIT_SETBACK = 3; // um deslize ligado tira (dano × 3) de progresso
 
   // ---------- Equipamentos ----------
   // Cada espaço tem um tipo de bônus; os itens são liberados por nível.
@@ -242,6 +346,8 @@
         gold: 0,
         attrs,
         equipment: defaultEquipment(),
+        look: null,
+        traits: [],
       },
       quests: [],
       rewards: [
@@ -273,6 +379,11 @@
       state.stats.bossesSeen = 0;
       state.version = 2;
     }
+    if (state.version === 2) {
+      state.hero.look = null;
+      state.hero.traits = [];
+      state.version = 3;
+    }
     return state;
   }
 
@@ -295,6 +406,11 @@
       difficulty: DIFFICULTY[data.difficulty] ? data.difficulty : 'medium',
       createdAt: key,
     };
+    const trait = activeTrait(state, data.trait);
+    if (trait) {
+      quest.trait = trait.id;
+      if (!ATTRIBUTES[data.attr]) quest.attr = TRAITS[trait.id].attr;
+    }
     if (quest.type === 'daily') {
       const days = Array.isArray(data.days) ? data.days.filter((d) => d >= 0 && d <= 6) : [];
       quest.days = days.length ? [...new Set(days)].sort() : [0, 1, 2, 3, 4, 5, 6];
@@ -328,6 +444,86 @@
 
   function habitCount(quest, key) {
     return quest.countDate === key ? quest.count : 0;
+  }
+
+  // ---------- Características ----------
+
+  function traitStage(trait) {
+    let stage = 0;
+    TRAIT_STAGES.forEach((s, i) => {
+      if (trait.progress >= s.min) stage = i;
+    });
+    return trait.overcome ? TRAIT_STAGES.length - 1 : stage;
+  }
+
+  function traitProgress(trait) {
+    const stage = traitStage(trait);
+    const next = TRAIT_STAGES[stage + 1];
+    if (!next) return { stage, current: 1, needed: 1 };
+    const start = TRAIT_STAGES[stage].min;
+    return { stage, current: trait.progress - start, needed: next.min - start };
+  }
+
+  function findTrait(state, id) {
+    return state.hero.traits.find((t) => t.id === id) || null;
+  }
+
+  function activeTrait(state, id) {
+    const t = findTrait(state, id);
+    return t && !t.overcome ? t : null;
+  }
+
+  function activeTraits(state) {
+    return state.hero.traits.filter((t) => !t.overcome);
+  }
+
+  function addTrait(state, id, today) {
+    if (!TRAITS[id] || findTrait(state, id) || activeTraits(state).length >= MAX_ACTIVE_TRAITS) return null;
+    const trait = { id, progress: 0, since: today || todayKey(), overcome: null };
+    state.hero.traits.push(trait);
+    addLog(state, TRAITS[id].icon, `Novo desafio: enfrentar ${TRAITS[id].name}.`);
+    return trait;
+  }
+
+  // Desiste de uma dificuldade ativa; virtudes conquistadas ficam para sempre.
+  function removeTrait(state, id) {
+    if (!activeTrait(state, id)) return false;
+    state.hero.traits = state.hero.traits.filter((t) => t.id !== id);
+    state.quests.forEach((q) => {
+      if (q.trait === id) delete q.trait;
+    });
+    return true;
+  }
+
+  // Cria as missões sugeridas que ainda não existem (compara pelo título).
+  function addSuggestedQuests(state, id, today) {
+    const def = TRAITS[id];
+    if (!def || !activeTrait(state, id)) return [];
+    const titles = new Set(state.quests.map((q) => q.title.toLowerCase()));
+    return def.quests
+      .filter((q) => !titles.has(q.title.toLowerCase()))
+      .map((q) => addQuest(state, { ...q, attr: def.attr, trait: id }, today));
+  }
+
+  function virtueBonus(state, attr) {
+    return state.hero.traits.filter((t) => t.overcome && TRAITS[t.id].attr === attr).length * VIRTUE_BONUS;
+  }
+
+  function advanceTrait(state, quest, xp, key) {
+    const trait = activeTrait(state, quest.trait);
+    if (!trait) return null;
+    const before = traitStage(trait);
+    trait.progress += xp;
+    const stage = traitStage(trait);
+    if (stage === before) return { id: trait.id, gained: xp };
+    const def = TRAITS[trait.id];
+    if (stage === TRAIT_STAGES.length - 1) {
+      trait.overcome = key;
+      addLog(state, def.virtue.icon, `Superou ${def.name}! Ganhou a virtude ${def.virtue.name}.`);
+    } else {
+      addLog(state, def.icon, `${def.name}: agora você está ${TRAIT_STAGES[stage].name.toLowerCase()}.`);
+    }
+    return { id: trait.id, gained: xp, stage, overcome: !!trait.overcome };
   }
 
   // ---------- Histórico (para os gráficos) ----------
@@ -366,8 +562,9 @@
     const streak = quest.type === 'daily' ? Math.min(quest.streak, STREAK_BONUS_CAP) : 0;
     const streakMult = 1 + streak * STREAK_BONUS_PER_DAY;
     const classMult = CLASSES[state.hero.cls].attr === quest.attr ? 1 + CLASS_BONUS : 1;
+    const traitMult = 1 + (activeTrait(state, quest.trait) ? TRAIT_BONUS : 0) + virtueBonus(state, quest.attr);
     return {
-      xp: Math.round(diff.xp * streakMult * classMult * (1 + b.xp)),
+      xp: Math.round(diff.xp * streakMult * classMult * traitMult * (1 + b.xp)),
       gold: Math.round(diff.gold * streakMult * (1 + b.gold)),
     };
   }
@@ -530,14 +727,17 @@
         const dmg = DIFFICULTY[quest.difficulty].damage;
         const result = damage(state, dmg, quest.title);
         const bossHealed = healBoss(state, dmg * 2);
+        const trait = activeTrait(state, quest.trait);
+        if (trait) trait.progress = Math.max(0, trait.progress - dmg * BAD_HABIT_SETBACK);
         if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${result.damage} de vida.`);
-        return { type: 'damage', ...result, bossHealed, achievements: checkAchievements(state) };
+        return { type: 'damage', ...result, bossHealed, traitSetback: trait ? dmg * BAD_HABIT_SETBACK : 0, achievements: checkAchievements(state) };
       }
       const reward = computeReward(state, quest);
       const events = grant(state, quest.attr, reward.xp, reward.gold);
       state.stats.completed++;
       historyDay(state, key).done++;
       addLog(state, '✨', `"${quest.title}": +${reward.xp} XP, +${reward.gold} ouro.`);
+      events.trait = advanceTrait(state, quest, reward.xp, key);
       return rewardResult(state, events, hitBoss(state, reward.xp));
     }
 
@@ -558,8 +758,15 @@
     historyDay(state, key).done++;
     const streakText = quest.type === 'daily' && quest.streak > 1 ? ` (sequência de ${quest.streak})` : '';
     addLog(state, '✅', `Missão "${quest.title}" concluída${streakText}: +${reward.xp} XP, +${reward.gold} ouro.`);
+    events.trait = advanceTrait(state, quest, reward.xp, key);
     const boss = hitBoss(state, reward.xp);
-    quest.lastGrant = { key, xp: reward.xp, gold: reward.gold, boss: boss && !boss.defeated ? { week: boss.week, damage: boss.damage } : null };
+    quest.lastGrant = {
+      key,
+      xp: reward.xp,
+      gold: reward.gold,
+      boss: boss && !boss.defeated ? { week: boss.week, damage: boss.damage } : null,
+      trait: events.trait && !events.trait.overcome ? events.trait.gained : 0,
+    };
     return rewardResult(state, events, boss);
   }
 
@@ -579,6 +786,8 @@
     if (g) {
       revoke(state, quest.attr, g.xp, g.gold);
       if (g.boss && state.boss && state.boss.week === g.boss.week) healBoss(state, g.boss.damage);
+      const trait = activeTrait(state, quest.trait);
+      if (trait && g.trait) trait.progress = Math.max(0, trait.progress - g.trait);
       if (state.history[g.key]) state.history[g.key].done = Math.max(0, state.history[g.key].done - 1);
     }
     delete quest.lastGrant;
@@ -672,6 +881,8 @@
     { id: 'defeat', icon: '🪦', name: 'Renascido', desc: 'Seja derrotado e continue lutando.', check: (s) => s.stats.defeats >= 1 },
     { id: 'boss-1', icon: '🏅', name: 'Caçador de Chefes', desc: 'Derrote seu primeiro chefe semanal.', check: (s) => s.stats.bossesDefeated >= 1 },
     { id: 'boss-10', icon: '🎖️', name: 'Flagelo dos Monstros', desc: 'Derrote 10 chefes semanais.', check: (s) => s.stats.bossesDefeated >= 10 },
+    { id: 'trait-1', icon: '🌱', name: 'Superação', desc: 'Supere uma das suas dificuldades.', check: (s) => s.hero.traits.some((t) => t.overcome) },
+    { id: 'trait-3', icon: '🦋', name: 'Metamorfose', desc: 'Supere três dificuldades.', check: (s) => s.hero.traits.filter((t) => t.overcome).length >= 3 },
     { id: 'legendary', icon: '✴️', name: 'Equipamento Lendário', desc: 'Equipe um item lendário.', check: (s) => Object.keys(SLOTS).some((slot) => { const i = equippedItem(s, slot); return i && i.tier === TIERS.length - 1; }) },
   ];
 
@@ -696,6 +907,7 @@
       state.hero &&
       typeof state.hero.xp === 'number' &&
       state.hero.equipment &&
+      Array.isArray(state.hero.traits) &&
       Array.isArray(state.quests) &&
       Array.isArray(state.rewards) &&
       state.history
@@ -711,6 +923,10 @@
     ATTR_BASE,
     SLOTS,
     TIERS,
+    TRAITS,
+    TRAIT_STAGES,
+    MAX_ACTIVE_TRAITS,
+    TRAIT_BONUS,
     EQUIPMENT,
     BOSSES,
     todayKey,
@@ -738,6 +954,14 @@
     undoQuest,
     damage,
     heal,
+    traitStage,
+    traitProgress,
+    findTrait,
+    activeTrait,
+    activeTraits,
+    addTrait,
+    removeTrait,
+    addSuggestedQuests,
     findItem,
     isUnlocked,
     bestUnlocked,
