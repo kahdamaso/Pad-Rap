@@ -1,6 +1,6 @@
 // Service worker: guarda o app no aparelho para funcionar sem internet.
 // A versão é gerada pelo build.js a partir do conteúdo do app.
-const CACHE = 'rotina-rpg-fb27a6cec4';
+const CACHE = 'rotina-rpg-1cfe04a070';
 const FONTS = 'rotina-rpg-fontes';
 const ASSETS = [
   './',

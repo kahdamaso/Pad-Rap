@@ -4,56 +4,27 @@
 
   const G = window.RoutineRPG;
   const C = window.RPGCharts;
+  const A = window.RPGAvatar;
+  const W = window.RPGWorld;
+  const F = window.RPGFx;
   const STORAGE_KEY = 'rotina-rpg:v1';
   const TAB_KEY = 'rotina-rpg:tab';
   const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const TABS = [
+    { id: 'village', icon: '🏘️', name: 'Vila' },
     { id: 'quests', icon: '📜', name: 'Missões' },
-    { id: 'character', icon: '🧙', name: 'Personagem' },
-    { id: 'shop', icon: '🛒', name: 'Loja' },
-    { id: 'stats', icon: '📈', name: 'Evolução' },
-    { id: 'achievements', icon: '🏆', name: 'Conquistas' },
-    { id: 'log', icon: '📖', name: 'Diário' },
-    { id: 'hero', icon: '⚙️', name: 'Herói' },
+    { id: 'character', icon: '🧙', name: 'Herói' },
+    { id: 'shop', icon: '🍺', name: 'Taverna' },
+    { id: 'chronicles', icon: '📖', name: 'Crônicas' },
+    { id: 'settings', icon: '⚙️', name: 'Ajustes' },
   ];
-  // Personagens do avatar; todos aceitam tom de pele.
-  const CHARACTERS = [
-    { id: 'maga', emoji: '🧙‍♀️', name: 'Maga' },
-    { id: 'mago', emoji: '🧙‍♂️', name: 'Mago' },
-    { id: 'elfa', emoji: '🧝‍♀️', name: 'Elfa' },
-    { id: 'elfo', emoji: '🧝‍♂️', name: 'Elfo' },
-    { id: 'heroina', emoji: '🦸‍♀️', name: 'Heroína' },
-    { id: 'heroi', emoji: '🦸‍♂️', name: 'Herói' },
-    { id: 'ninja', emoji: '🥷', name: 'Ninja' },
-    { id: 'fada', emoji: '🧚‍♀️', name: 'Fada' },
-    { id: 'sereia', emoji: '🧜‍♀️', name: 'Sereia' },
-    { id: 'tritao', emoji: '🧜‍♂️', name: 'Tritão' },
-    { id: 'vampira', emoji: '🧛‍♀️', name: 'Vampira' },
-    { id: 'vampiro', emoji: '🧛‍♂️', name: 'Vampiro' },
-    { id: 'princesa', emoji: '👸', name: 'Princesa' },
-    { id: 'principe', emoji: '🤴', name: 'Príncipe' },
-    { id: 'pessoa', emoji: '🧑', name: 'Pessoa' },
-    { id: 'barbudo', emoji: '🧔', name: 'Barbudo' },
+  // Abas de versões anteriores que agora vivem dentro de outras.
+  const OLD_TABS = { stats: 'chronicles', achievements: 'chronicles', log: 'chronicles', hero: 'settings' };
+  const CHRONICLES = [
+    { id: 'stats', name: '📈 Evolução' },
+    { id: 'achievements', name: '🏆 Conquistas' },
+    { id: 'log', name: '📖 Diário' },
   ];
-  const SKIN_TONES = [
-    { id: '', name: 'Padrão', swatch: '#f7c948' },
-    { id: '🏻', name: 'Clara', swatch: '#f6d7c3' },
-    { id: '🏼', name: 'Média-clara', swatch: '#e3b98f' },
-    { id: '🏽', name: 'Média', swatch: '#c38e5f' },
-    { id: '🏾', name: 'Média-escura', swatch: '#8f5b3a' },
-    { id: '🏿', name: 'Escura', swatch: '#5a3a26' },
-  ];
-  const AVATAR_COLORS = {
-    roxo: { name: 'Roxo', hex: '#9b7bff' },
-    azul: { name: 'Azul', hex: '#4c9bff' },
-    verde: { name: 'Verde', hex: '#3fbf7f' },
-    dourado: { name: 'Dourado', hex: '#e0a93b' },
-    vermelho: { name: 'Vermelho', hex: '#e5484d' },
-    rosa: { name: 'Rosa', hex: '#e86fb5' },
-  };
-
-  // Posição de cada equipamento em volta do avatar.
-  const AVATAR_SLOTS = { helmet: 'top', amulet: 'top-right', weapon: 'right', shield: 'left', pet: 'bottom-left' };
 
   const app = document.getElementById('app');
   const modal = document.getElementById('modal');
@@ -65,6 +36,9 @@
 
   let state = load();
   let tab = readTab();
+  let chronicle = 'stats';
+  let npcIndex = 0;
+  let npcLine = null;
   let installPrompt = null;
 
   // ---------- Persistência ----------
@@ -74,7 +48,9 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const data = G.migrate(JSON.parse(raw));
-      return G.validate(data) ? data : null;
+      if (!G.validate(data)) return null;
+      data.hero.look = A.normalizeLook(data.hero.look); // aparência de emoji vira desenho
+      return data;
     } catch (e) {
       return null;
     }
@@ -90,10 +66,11 @@
 
   function readTab() {
     try {
-      const t = localStorage.getItem(TAB_KEY);
-      return TABS.some((x) => x.id === t) ? t : 'quests';
+      const saved = localStorage.getItem(TAB_KEY);
+      const t = OLD_TABS[saved] || saved;
+      return TABS.some((x) => x.id === t) ? t : 'village';
     } catch (e) {
-      return 'quests';
+      return 'village';
     }
   }
 
@@ -115,18 +92,6 @@
 
   function pct(a, b) {
     return b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0;
-  }
-
-  // O tom de pele entra logo depois do primeiro caractere do emoji (antes do ♀/♂).
-  function characterEmoji(look) {
-    const ch = CHARACTERS.find((c) => c.id === look.char) || CHARACTERS[0];
-    const tone = SKIN_TONES.some((t) => t.id === look.tone) ? look.tone : '';
-    const parts = Array.from(ch.emoji);
-    return parts[0] + tone + parts.slice(1).join('');
-  }
-
-  function defaultLook() {
-    return { char: CHARACTERS[0].id, tone: '', color: 'roxo' };
   }
 
   function shortDate(key) {
@@ -205,7 +170,7 @@
       app.innerHTML = creationView();
       return;
     }
-    const views = { quests: questsView, character: characterView, shop: shopView, stats: statsView, achievements: achievementsView, log: logView, hero: heroView };
+    const views = { village: villageView, quests: questsView, character: characterView, shop: shopView, chronicles: chroniclesView, settings: heroView };
     app.innerHTML = `
       ${heroCard()}
       <nav class="tabs" role="tablist">
@@ -213,39 +178,32 @@
       </nav>
       <section class="panel">${views[tab]()}</section>
     `;
-    if (tab === 'stats') drawCharts();
+    if (tab === 'chronicles' && chronicle === 'stats') drawCharts();
   }
 
   // Seletores reutilizados na criação do herói e na edição do personagem.
-  function lookPickers(look) {
+  function swatches(name, options, current) {
+    return `<div class="swatches">${options.map(([id, label, hex]) => `<label class="swatch" title="${label}">
+      <input type="radio" name="${name}" value="${id}" ${String(current) === String(id) ? 'checked' : ''} aria-label="${label}">
+      <span style="background:${hex}"></span>
+    </label>`).join('')}</div>`;
+  }
+
+  function headChoices(name, options, look) {
+    return `<div class="char-grid">${Object.entries(options).map(([id, label]) => `<label class="pick" title="${label}">
+      <input type="radio" name="${name}" value="${id}" ${look[name] === id ? 'checked' : ''}>
+      <span class="pick-card"><span class="pick-art" data-${name}="${id}">${A.render({ ...look, [name]: id }, {}, { crop: 'head' })}</span><small>${label}</small></span>
+    </label>`).join('')}</div>`;
+  }
+
+  function lookPickers(lookIn) {
+    const look = A.normalizeLook(lookIn);
     return `
-      <fieldset class="field">
-        <legend>Personagem</legend>
-        <div class="char-grid">
-          ${CHARACTERS.map((c) => `<label class="pick" title="${c.name}">
-            <input type="radio" name="char" value="${c.id}" ${look.char === c.id ? 'checked' : ''}>
-            <span class="pick-card"><span class="pick-emoji">${characterEmoji({ char: c.id, tone: look.tone })}</span><small>${c.name}</small></span>
-          </label>`).join('')}
-        </div>
-      </fieldset>
-      <fieldset class="field">
-        <legend>Tom de pele</legend>
-        <div class="swatches">
-          ${SKIN_TONES.map((t) => `<label class="swatch" title="${t.name}">
-            <input type="radio" name="tone" value="${t.id}" ${look.tone === t.id ? 'checked' : ''} aria-label="${t.name}">
-            <span style="background:${t.swatch}"></span>
-          </label>`).join('')}
-        </div>
-      </fieldset>
-      <fieldset class="field">
-        <legend>Cor do avatar</legend>
-        <div class="swatches">
-          ${Object.entries(AVATAR_COLORS).map(([id, c]) => `<label class="swatch" title="${c.name}">
-            <input type="radio" name="color" value="${id}" ${look.color === id ? 'checked' : ''} aria-label="${c.name}">
-            <span style="background:${c.hex}"></span>
-          </label>`).join('')}
-        </div>
-      </fieldset>
+      <fieldset class="field"><legend>Pele</legend>${swatches('skin', A.SKINS.map((k) => [k.id, k.name, k.hex]), look.skin)}</fieldset>
+      <fieldset class="field"><legend>Cabelo</legend>${headChoices('hair', A.HAIR_STYLES, look)}</fieldset>
+      <fieldset class="field"><legend>Cor do cabelo</legend>${swatches('hairColor', Object.entries(A.HAIR_COLORS).map(([id, c]) => [id, c.name, c.hex]), look.hairColor)}</fieldset>
+      <fieldset class="field"><legend>Detalhe</legend>${headChoices('extra', A.EXTRAS, look)}</fieldset>
+      <fieldset class="field"><legend>Roupa</legend>${swatches('color', Object.entries(A.OUTFITS).map(([id, c]) => [id, c.name, c.hex]), look.color)}</fieldset>
     `;
   }
 
@@ -268,17 +226,22 @@
   }
 
   function readLook(data) {
-    return { char: data.get('char') || CHARACTERS[0].id, tone: data.get('tone') || '', color: data.get('color') || 'roxo' };
+    return A.normalizeLook({
+      skin: Number(data.get('skin')),
+      hair: data.get('hair'),
+      hairColor: data.get('hairColor'),
+      extra: data.get('extra'),
+      color: data.get('color'),
+    });
   }
 
   function lookPreview(look) {
-    const cls = G.CLASSES[(app.querySelector('input[name=cls]:checked') || {}).value] || G.CLASSES.guerreiro;
-    const color = AVATAR_COLORS[look.color] ? AVATAR_COLORS[look.color].hex : AVATAR_COLORS.roxo.hex;
-    return `<div class="avatar big" style="--avatar:${color}"><span class="avatar-class">${characterEmoji(look)}</span><span class="avatar-item pos-right">${cls.icon}</span></div>`;
+    const cls = (app.querySelector('input[name=cls]:checked') || {}).value || 'guerreiro';
+    return `<div class="avatar big" style="--avatar:${A.OUTFITS[look.color].hex}">${A.render(look, { weapon: 'graveto', helmet: 'bone' }, { cls })}</div>`;
   }
 
   function creationView() {
-    const look = defaultLook();
+    const look = { ...A.DEFAULT_LOOK };
     return `
       <section class="creation">
         <h1 class="logo">Rotina RPG</h1>
@@ -342,17 +305,18 @@
     `;
   }
 
+  function gearOf() {
+    const gear = {};
+    Object.keys(G.SLOTS).forEach((slot) => {
+      const item = G.equippedItem(state, slot);
+      gear[slot] = item ? item.id : null;
+    });
+    return gear;
+  }
+
   function avatar(size, lookOverride) {
-    const cls = G.CLASSES[state.hero.cls];
-    const look = lookOverride || state.hero.look;
-    const color = look && AVATAR_COLORS[look.color] ? AVATAR_COLORS[look.color].hex : AVATAR_COLORS.roxo.hex;
-    const badges = Object.entries(AVATAR_SLOTS)
-      .map(([slot, pos]) => {
-        const item = G.equippedItem(state, slot);
-        return item ? `<span class="avatar-item pos-${pos} tier-${item.tier}" title="${esc(item.name)}">${item.icon}</span>` : '';
-      })
-      .join('');
-    return `<div class="avatar ${size || ''}" style="--avatar:${color}" aria-hidden="true"><span class="avatar-class">${look ? characterEmoji(look) : cls.icon}</span>${badges}</div>`;
+    const look = A.normalizeLook(lookOverride || state.hero.look);
+    return `<div class="avatar ${size || ''}" style="--avatar:${A.OUTFITS[look.color].hex}" aria-hidden="true">${A.render(look, gearOf(), { cls: state.hero.cls })}</div>`;
   }
 
   function traitChips() {
@@ -492,6 +456,256 @@
     `;
   }
 
+  // ---------- Vila ----------
+
+  function villageView() {
+    const today = G.todayKey();
+    const hour = new Date().getHours();
+    const b = state.boss;
+    const scene = W.scene({
+      hour,
+      hero: A.render(state.hero.look, gearOf(), { cls: state.hero.cls }),
+      boss: b && { icon: b.icon, pct: b.hp / b.maxHp, defeated: b.defeated },
+      chest: G.chestAvailable(state, today),
+      trial: !!state.hero.trial,
+      board: G.newBoardCount(state),
+    });
+    const lines = W.npcLines(state, G, today, hour);
+    npcLine = lines[npcIndex % lines.length];
+    const npc = W.NPCS[npcLine.npc];
+    const dailies = state.quests.filter((q) => q.type === 'daily' && G.isScheduled(q, today));
+    const pending = dailies.filter((q) => !G.isDoneOn(q, today));
+    const done = dailies.length - pending.length;
+    const ring = dailies.length ? done / dailies.length : 0;
+    return `
+      <div class="village card">${scene}</div>
+      <div class="npc card">
+        <div class="npc-portrait" aria-hidden="true">${A.render(npc.look, npc.gear, { crop: 'head' })}</div>
+        <div class="npc-body">
+          <div><strong>${npc.name}</strong> <span class="muted small">· ${npc.role}</span></div>
+          <p class="npc-text">“${esc(npcLine.text)}”</p>
+          <div class="btn-row tight">
+            ${npcLine.action ? `<button class="btn small-btn primary" data-action="npc-go">${esc(npcLine.actionLabel)}</button>` : ''}
+            <button class="btn small-btn ghost" data-action="npc-next">Próxima fala ›</button>
+          </div>
+        </div>
+      </div>
+      <div class="today card">
+        <div class="today-head">
+          <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18" class="ring-track"/><circle cx="22" cy="22" r="18" class="ring-fill" stroke-dasharray="${(ring * 113.1).toFixed(1)} 113.1"/></svg>
+          <div><strong>Hoje</strong><span class="muted small"> · ${done}/${dailies.length} diárias${dailies.length && !pending.length ? ' 🎉' : ''}</span></div>
+          <button class="btn small-btn" data-action="tab" data-id="quests">Todas as missões ›</button>
+        </div>
+        ${pending.length ? `<ul class="quest-list">${pending.slice(0, 4).map((q) => questItem(q, today)).join('')}</ul>` : `<p class="muted small">${dailies.length ? 'Tudo feito por hoje! Que tal o desafio do dia ou uma missão do Mural?' : 'Você ainda não tem diárias. Passe no Mural!'}</p>`}
+      </div>
+    `;
+  }
+
+  function arenaModal() {
+    const b = state.boss;
+    if (!b) return;
+    const today = G.todayKey();
+    const end = G.addDays(b.week, 6);
+    const daysLeft = Math.round((new Date(`${end}T12:00`) - new Date(`${today}T12:00`)) / 864e5) + 1;
+    const reward = G.bossReward(state);
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon ${b.defeated ? '' : 'boss-float'}">${b.defeated ? '🏅' : b.icon}</div>
+        <h2>${esc(b.name)}</h2>
+        ${b.defeated
+          ? '<p>Derrotado! A Arena descansa até segunda-feira.</p>'
+          : `<div class="bar boss-bar arena-bar"><div style="width:${pct(b.hp, b.maxHp)}%"></div></div>
+             <p class="muted small">${b.hp}/${b.maxHp} de vida · ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'} para derrotá-lo</p>
+             <p>Cada missão concluída é um golpe. Prêmio: <strong>${reward.xp} XP</strong> e <strong>${reward.gold} ouro</strong>.</p>`}
+        <div class="btn-row">
+          <button class="btn ghost" data-action="close-modal">Voltar à Vila</button>
+          <button class="btn primary" data-action="tab" data-id="quests">Ir às missões</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function templeModal() {
+    const t = state.hero.trial;
+    const next = G.TITLES[Math.min((state.hero.trialsPassed || 0) + 1, G.TITLES.length - 1)];
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏛️</div>
+        <h2>Templo das Provações</h2>
+        <p>Você é <strong>${G.heroTitle(state)}</strong>.</p>
+        ${t
+          ? `<p>Sua Provação para o nível ${t.level} está em andamento.</p>
+             <div class="trial-pips center">${Array.from({ length: t.need }, (_, i) => `<span class="pip ${i < t.days.length ? 'on' : ''}"></span>`).join('')}</div>
+             <p class="muted small">Tenha ${t.need} dias perfeitos (todas as diárias do dia) para se tornar ${next}.</p>`
+          : `<p class="muted small">A próxima Provação acontece ao chegar ao nível ${G.levelCap(state) + 1}. Quem vencer se torna ${next}.</p>`}
+        <button class="btn primary" data-action="close-modal">Voltar à Vila</button>
+      </div>
+    `);
+  }
+
+  function goToPlace(id) {
+    F.play('click');
+    if (id === 'shop') setTab('shop');
+    else if (id === 'home') setTab('character');
+    else if (id === 'board') {
+      act(() => G.markBoardSeen(state));
+      boardModal();
+    } else if (id === 'arena') arenaModal();
+    else if (id === 'temple') templeModal();
+  }
+
+  // ---------- Crônicas ----------
+
+  function chroniclesView() {
+    const views = { stats: statsView, achievements: achievementsView, log: logView };
+    return `
+      <div class="subtabs" role="tablist">
+        ${CHRONICLES.map((c) => `<button role="tab" class="subtab ${c.id === chronicle ? 'active' : ''}" aria-selected="${c.id === chronicle}" data-action="chronicle" data-id="${c.id}">${c.name}</button>`).join('')}
+      </div>
+      ${views[chronicle]()}
+    `;
+  }
+
+  // ---------- Cartão do herói ----------
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  async function heroCardBlob() {
+    const h = state.hero;
+    const look = A.normalizeLook(h.look);
+    const cls = G.CLASSES[h.cls];
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext('2d');
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const bg = ctx.createLinearGradient(0, 0, 0, 1350);
+    bg.addColorStop(0, '#33245e');
+    bg.addColorStop(1, '#120e1f');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 1080, 1350);
+    const glow = ctx.createRadialGradient(540, 470, 40, 540, 470, 420);
+    glow.addColorStop(0, A.OUTFITS[look.color].hex + '88');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1080, 1000);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f2c14e';
+    ctx.font = '700 40px Cinzel, Georgia, serif';
+    ctx.fillText('ROTINA RPG', 540, 100);
+
+    const svg = A.render(look, gearOf(), { cls: h.cls }).replace('<svg ', '<svg width="440" height="550" ');
+    const img = new Image();
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    await img.decode();
+    ctx.drawImage(img, 320, 140, 440, 550);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 76px Cinzel, Georgia, serif';
+    ctx.fillText(h.name, 540, 770);
+    ctx.fillStyle = '#c3b0ff';
+    ctx.font = '600 38px Inter, system-ui, sans-serif';
+    ctx.fillText(`Nível ${G.heroLevel(state)} · ${G.heroTitle(state)} ${cls.name}`, 540, 830);
+
+    const virtues = h.traits.filter((t) => t.overcome).map((t) => `${G.TRAITS[t.id].virtue.icon} ${G.TRAITS[t.id].virtue.name}`);
+    const tiles = [
+      ['Missões concluídas', state.stats.completed],
+      ['Maior sequência', state.stats.bestStreak],
+      ['Chefes derrotados', state.stats.bossesDefeated],
+      ['Conquistas', Object.keys(state.achievements).length],
+    ];
+    tiles.forEach(([label, value], i) => {
+      const x = 90 + (i % 2) * 460;
+      const y = 890 + Math.floor(i / 2) * 170;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      roundRect(ctx, x, y, 440, 150, 28);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 64px Inter, system-ui, sans-serif';
+      ctx.fillText(String(value), x + 220, y + 82);
+      ctx.fillStyle = '#a99fc0';
+      ctx.font = '500 28px Inter, system-ui, sans-serif';
+      ctx.fillText(label, x + 220, y + 125);
+    });
+
+    ctx.fillStyle = '#ece6f7';
+    ctx.font = '500 32px Inter, system-ui, sans-serif';
+    ctx.fillText(virtues.length ? `Virtudes: ${virtues.join('  ')}` : 'Minha rotina virou uma aventura ⚔️', 540, 1270);
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  }
+
+  async function shareModal() {
+    openModal('<div class="celebrate"><div class="big-icon">📸</div><p>Desenhando seu cartão…</p></div>');
+    try {
+      const blob = await heroCardBlob();
+      const url = URL.createObjectURL(blob);
+      const file = new File([blob], `${state.hero.name}-rotina-rpg.png`, { type: 'image/png' });
+      const canShare = navigator.canShare && navigator.canShare({ files: [file] });
+      shareModal.file = file;
+      openModal(`
+        <div class="celebrate">
+          <h2>Cartão do herói</h2>
+          <img class="share-preview" src="${url}" alt="Cartão do herói ${esc(state.hero.name)}">
+          <div class="btn-row">
+            ${canShare ? '<button class="btn primary" data-action="share-send">📤 Compartilhar</button>' : ''}
+            <a class="btn ${canShare ? '' : 'primary'}" href="${url}" download="${esc(file.name)}">⬇️ Baixar imagem</a>
+          </div>
+          <button class="btn ghost" data-action="close-modal">Fechar</button>
+        </div>
+      `);
+    } catch (e) {
+      openModal('<div class="celebrate"><p>Não foi possível criar o cartão neste navegador.</p><button class="btn primary" data-action="close-modal">Fechar</button></div>');
+    }
+  }
+
+  // ---------- Efeitos de jogo ----------
+
+  function fxResult(result, rect) {
+    if (!result) return;
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const y = rect ? rect.top : window.innerHeight / 2;
+    if (result.type === 'reward') {
+      F.play('complete');
+      F.vibrate(12);
+      F.float(x, y, `+${result.xp} XP`, 'xp');
+      if (result.gold) setTimeout(() => F.float(x + 34, y + 12, `+${result.gold} 🪙`, 'gold'), 140);
+      F.burst(x, y + (rect ? rect.height / 2 : 0), { colors: ['#f2c14e', '#9b7bff', '#4cc38a'] });
+      const bossIcon = app.querySelector('.boss-icon') || app.querySelector('.boss-peek');
+      if (result.boss && bossIcon) {
+        const r = bossIcon.getBoundingClientRect();
+        setTimeout(() => {
+          F.float(r.left + r.width / 2, r.top, `−${result.boss.damage}`, 'dmg');
+          F.shake(bossIcon);
+          F.play('hit');
+        }, 180);
+      }
+      if (result.boss && result.boss.defeated) {
+        F.confetti();
+        setTimeout(() => F.play('victory'), 250);
+      } else if (result.levelUp || (result.trial && result.trial.passed)) {
+        F.confetti();
+        setTimeout(() => F.play('levelup'), 250);
+      }
+    } else if (result.type === 'damage') {
+      F.play('hurt');
+      F.vibrate([30, 40, 30]);
+      F.float(x, y, `−${result.damage} ❤️`, 'dmg');
+      F.shake(app.querySelector('.hero'));
+    } else if (result.type === 'capped') {
+      F.play('click');
+    }
+  }
+
   function questChips(q) {
     const a = G.ATTRIBUTES[q.attr];
     const d = G.DIFFICULTY[q.difficulty];
@@ -627,7 +841,10 @@
         <div>
           <strong>${esc(state.hero.name)}</strong>
           <p class="muted small">${cls.icon} ${cls.name} · nível ${G.heroLevel(state)}</p>
-          <button class="btn small-btn" data-action="edit-look">🎨 Editar aparência</button>
+          <div class="btn-row tight">
+            <button class="btn small-btn" data-action="edit-look">🎨 Editar aparência</button>
+            <button class="btn small-btn" data-action="share">📸 Compartilhar</button>
+          </div>
         </div>
       </div>
 
@@ -851,7 +1068,7 @@
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => state && tab === 'stats' && drawCharts(), 150);
+    resizeTimer = setTimeout(() => state && tab === 'chronicles' && chronicle === 'stats' && drawCharts(), 150);
   });
 
   // Tooltip dos gráficos: o valor em destaque, o rótulo embaixo.
@@ -976,7 +1193,12 @@
           <input name="name" maxlength="24" value="${esc(state.hero.name)}" aria-label="Nome do herói" required>
           <button class="btn" type="submit">Renomear</button>
         </form>
+        <label class="check sound-toggle">
+          <input type="checkbox" id="sound-toggle" ${F.soundOn() ? 'checked' : ''}>
+          <span>🔊 Sons do jogo</span>
+        </label>
         <div class="btn-row">
+          <button class="btn" data-action="share">📸 Cartão do herói</button>
           <button class="btn" data-action="export">⬇️ Exportar progresso</button>
           <label class="btn">⬆️ Importar<input type="file" accept="application/json,.json" id="import-file" hidden></label>
           <button class="btn danger" data-action="reset">Recomeçar do zero</button>
@@ -1187,7 +1409,7 @@
   }
 
   function lookModal() {
-    const look = state.hero.look || defaultLook();
+    const look = A.normalizeLook(state.hero.look);
     openModal(`
       <form id="look-form" method="dialog">
         <h2>Aparência</h2>
@@ -1299,6 +1521,7 @@
     const today = G.todayKey();
     switch (btn.dataset.action) {
       case 'tab':
+        closeModal();
         setTab(id);
         break;
       case 'step':
@@ -1324,14 +1547,22 @@
         const loot = act(() => G.openChest(state, today));
         if (loot) {
           lootModal(loot);
+          F.play('chest');
+          F.vibrate(20);
+          F.burst(window.innerWidth / 2, window.innerHeight / 2 - 60, { count: 18, spread: 80, glyphs: ['✦', '🪙', '✧'], colors: ['#f2c14e', '#ffe7a8'] });
+          if (loot.events && loot.events.levelUp) F.confetti();
           (loot.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
         } else closeModal();
         break;
       }
-      case 'challenge-done':
+      case 'challenge-done': {
+        const rect = btn.getBoundingClientRect();
         checkDay();
-        announce(act(() => G.completeChallenge(state, today)));
+        const result = act(() => G.completeChallenge(state, today));
+        announce(result);
+        fxResult(result, rect);
         break;
+      }
       case 'challenge-reroll':
         act(() => G.rerollChallenge(state, today));
         toast('🎲', 'Novo desafio sorteado!');
@@ -1352,12 +1583,43 @@
         confirmModal(`Desistir de enfrentar ${def.name}? O progresso será perdido e as missões continuam, mas sem o bônus.`, 'Desistir', () => act(() => G.removeTrait(state, id)));
         break;
       }
-      case 'complete':
+      case 'complete': {
+        const rect = btn.getBoundingClientRect();
         checkDay();
-        announce(act(() => G.completeQuest(state, id, today)));
+        const result = act(() => G.completeQuest(state, id, today));
+        announce(result);
+        fxResult(result, rect);
         break;
+      }
       case 'undo':
         act(() => G.undoQuest(state, id, today));
+        F.play('click');
+        break;
+      case 'place':
+        goToPlace(id);
+        break;
+      case 'npc-next':
+        npcIndex++;
+        F.play('click');
+        render();
+        break;
+      case 'npc-go': {
+        const line = npcLine;
+        if (!line) break;
+        if (line.action === 'chest') chestModal();
+        else if (line.action === 'place') goToPlace(line.id);
+        else if (line.action === 'tab') setTab(line.id);
+        break;
+      }
+      case 'chronicle':
+        chronicle = id;
+        render();
+        break;
+      case 'share':
+        shareModal();
+        break;
+      case 'share-send':
+        if (shareModal.file) navigator.share({ files: [shareModal.file], title: 'Rotina RPG', text: 'Minha rotina virou um RPG! ⚔️' }).catch(() => {});
         break;
       case 'delete-quest': {
         const q = G.findQuest(state, id);
@@ -1376,6 +1638,7 @@
       case 'buy': {
         const r = act(() => G.buyReward(state, id));
         if (r.ok) {
+          F.play('coin');
           toast('🛒', r.healed ? `+${r.healed} de vida` : 'Aproveite, você mereceu!', 'gold');
           (r.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
         }
@@ -1479,7 +1742,7 @@
       addTraits(traits, !!data.get('starter'), today);
       if (data.get('starter') && !traits.length) addStarterQuests();
       G.processRollover(state, today); // invoca o primeiro chefe já com as missões
-      tab = 'quests';
+      tab = 'village';
       save();
       render();
       window.scrollTo(0, 0);
@@ -1535,16 +1798,15 @@
   function onPickerChange(e) {
     const form = e.target.form;
     if (!form) return;
-    if (['char', 'tone', 'color', 'cls'].includes(e.target.name)) {
+    if (['skin', 'hair', 'hairColor', 'extra', 'color', 'cls'].includes(e.target.name)) {
       const look = readLook(new FormData(form));
       const preview = form.querySelector('.look-preview');
       if (preview) preview.innerHTML = form.id === 'create-form' ? lookPreview(look) : avatar('big', look);
-      // Os botões de personagem mostram o tom de pele escolhido.
-      if (e.target.name === 'tone') {
-        form.querySelectorAll('input[name=char]').forEach((input) => {
-          input.nextElementSibling.querySelector('.pick-emoji').textContent = characterEmoji({ char: input.value, tone: look.tone });
-        });
-      }
+      // As opções de cabelo e detalhe mostram a pele e a cor escolhidas.
+      form.querySelectorAll('.pick-art').forEach((el) => {
+        const key = el.dataset.hair ? 'hair' : 'extra';
+        el.innerHTML = A.render({ ...look, [key]: el.dataset[key] }, {}, { crop: 'head' });
+      });
     }
     if (e.target.name === 'traits') {
       const grid = e.target.closest('.trait-grid');
@@ -1556,6 +1818,19 @@
     }
   }
   app.addEventListener('change', onPickerChange);
+  app.addEventListener('change', (e) => {
+    if (e.target.id !== 'sound-toggle') return;
+    F.setSound(e.target.checked);
+    if (e.target.checked) F.play('complete');
+  });
+  // Lugares da Vila também funcionam pelo teclado.
+  app.addEventListener('keydown', (e) => {
+    const el = e.target.closest && e.target.closest('g[data-action]');
+    if (el && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+  });
   modal.addEventListener('change', onPickerChange);
 
   // Mostra os campos certos para o tipo de missão escolhido.

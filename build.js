@@ -10,10 +10,7 @@ function build() {
   const safe = (code) => code.replace(/<\/script/gi, '<\\/script');
   return src('template.html')
     .replace('<link rel="stylesheet" href="src/styles.css">', () => `<style>\n${src('styles.css')}</style>`)
-    .replace('<script src="src/content.js"></script>', () => `<script>\n${safe(src('content.js'))}</script>`)
-    .replace('<script src="src/game.js"></script>', () => `<script>\n${safe(src('game.js'))}</script>`)
-    .replace('<script src="src/charts.js"></script>', () => `<script>\n${safe(src('charts.js'))}</script>`)
-    .replace('<script src="src/app.js"></script>', () => `<script>\n${safe(src('app.js'))}</script>`);
+    .replace(/<script src="src\/([\w-]+\.js)"><\/script>/g, (_, file) => `<script>\n${safe(src(file))}</script>`);
 }
 
 // O service worker muda de versão sempre que o app muda, para o celular baixar a atualização.

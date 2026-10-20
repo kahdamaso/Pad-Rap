@@ -36,6 +36,14 @@ Transforme sua rotina em um RPG. Cada hábito vira missão, cada dia vira XP.
 
 Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metade do ouro. Subir de nível restaura a vida; cada noite de descanso recupera 10% (mais com um companheiro).
 
+### Um mundo para explorar
+
+- **🏘️ A Vila** é a tela inicial: Taverna (loja), Mural (missões), Arena (o chefe da semana), Templo (Provações) e sua casa (personagem). O céu muda com a hora do dia: amanhecer, dia, entardecer e noite estrelada.
+- **Personagens da Vila** conversam com você sobre o seu dia: Bia, a taverneira; Mestre Orion, da guilda; Celeste, a sacerdotisa; e Tobias, o guarda.
+- **Avatar desenhado** em camadas (pele, cabelo, cor do cabelo, detalhes e roupa), com o equipamento aparecendo no corpo. Fica igual em qualquer aparelho.
+- **Efeitos:** XP subindo do botão, dano no chefe, confete ao subir de nível, sons (dá para desligar em Ajustes) e vibração no celular.
+- **📸 Cartão do herói:** uma imagem com seu avatar, nível e conquistas para compartilhar.
+
 ## Rodando no computador
 
 Dê dois cliques no `index.html`. Ele é um arquivo único, com tudo embutido, então funciona mesmo sozinho.
@@ -68,6 +76,9 @@ O código-fonte fica em `src/`. O `index.html` e o `sw.js` são gerados a partir
 
 - `src/template.html` – esqueleto da página
 - `src/content.js` – Mural de Missões, títulos e baús
+- `src/avatar.js` – avatar desenhado em SVG
+- `src/world.js` – cenário da Vila e falas dos personagens
+- `src/fx.js` – efeitos, sons e vibração
 - `src/game.js` – regras do jogo (funções puras, sem DOM)
 - `src/charts.js` – gráficos em SVG
 - `src/app.js` – interface
