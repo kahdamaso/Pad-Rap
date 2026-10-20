@@ -20,6 +20,20 @@ Transforme sua rotina em um RPG. Cada hábito vira missão, cada dia vira XP.
 8. **📈 Evolução** – gráficos de missões por dia, XP ao longo do tempo, diárias cumpridas por semana e atributos.
 9. Desbloqueie **conquistas** e acompanhe tudo no **Diário de Aventura**.
 
+### Todo dia tem um motivo para voltar
+
+- **🎁 Baú diário:** sempre tem ouro e às vezes XP, cura ou um Pergaminho de Folga. Abrir o app dias seguidos melhora o baú: madeira, prata (3 dias) e ouro (7 dias).
+- **🎲 Desafio do dia:** uma missão-surpresa sorteada do Mural que vale o dobro e some à meia-noite. Dá para trocar uma vez.
+- **📋 Mural de Missões:** missões prontas, com recompensa definida pelo jogo, liberadas conforme o nível. Cada atributo tem uma escada que começa pequena (beber um copo de água) e vai ficando mais exigente (dormir 8 horas). Quando uma missão fica fácil demais para o seu nível, ela rende menos: é hora de aceitar a próxima.
+- **🏛️ Provação:** a cada 5 níveis, para subir é preciso ter alguns dias perfeitos (todas as diárias do dia cumpridas). O XP continua acumulando enquanto isso. Cada Provação vencida dá um título: Novato → Aprendiz → Aventureiro → Cavaleiro → Campeão…
+- **📜 Pergaminho de Folga:** protege sozinho um dia ruim, sem dano e sem perder sequências. Vem no baú ou na loja, e dá para guardar até 3.
+
+### Regras para os pontos valerem
+
+- Hábitos bons rendem XP só nas 3 primeiras vezes do dia.
+- Tarefa criada e concluída no mesmo dia rende metade (planejar na véspera vale mais).
+- Missões criadas por você têm dificuldade limitada pelo nível: Difícil a partir do 3, Épica a partir do 8.
+
 Com a vida em 0 o herói é derrotado: perde o progresso do nível atual e metade do ouro. Subir de nível restaura a vida; cada noite de descanso recupera 10% (mais com um companheiro).
 
 ## Rodando no computador
@@ -53,6 +67,7 @@ Depois de aberto uma vez, o app funciona offline. Quando houver internet, ele ba
 O código-fonte fica em `src/`. O `index.html` e o `sw.js` são gerados a partir dele com `npm run build` (rode depois de editar qualquer arquivo de `src/`; o `npm test` avisa se esquecer).
 
 - `src/template.html` – esqueleto da página
+- `src/content.js` – Mural de Missões, títulos e baús
 - `src/game.js` – regras do jogo (funções puras, sem DOM)
 - `src/charts.js` – gráficos em SVG
 - `src/app.js` – interface

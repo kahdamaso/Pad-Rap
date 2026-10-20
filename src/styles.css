@@ -626,5 +626,50 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
 .gear-head { margin-top: 8px; }
 .gear-summary { margin-bottom: 14px; }
 
+/* ---------- Hoje: baú, desafio do dia e Provação ---------- */
+
+.today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.today-grid:empty { display: none; }
+.today-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; font: inherit; color: inherit; }
+.today-card.done { opacity: 0.75; }
+.today-icon { font-size: 2rem; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 14px; background: var(--card-2); }
+.today-body { display: grid; gap: 3px; min-width: 0; }
+.today-actions { display: grid; gap: 6px; }
+.chest-card { cursor: pointer; border-color: color-mix(in srgb, var(--gold) 55%, var(--border)); background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 12%, var(--card)), var(--card)); }
+.chest-card:hover { border-color: var(--gold); }
+.challenge-card { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.wiggle { animation: wiggle 1.6s ease-in-out infinite; }
+@keyframes wiggle { 0%, 70%, 100% { transform: rotate(0); } 76% { transform: rotate(-9deg); } 82% { transform: rotate(8deg); } 88% { transform: rotate(-5deg); } 94% { transform: rotate(3deg); } }
+
+.trial { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; padding: 14px 16px; margin-bottom: 12px; border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); }
+.trial-pips { display: flex; gap: 6px; margin: 4px 0; }
+.pip { width: 26px; height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); }
+.pip.on { background: var(--accent); border-color: var(--accent); }
+
+.scrolls { font-weight: 700; color: var(--muted); }
+.btn-row.tight { margin-top: 0; gap: 6px; }
+.count-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--hp); color: #fff; font-size: 0.75rem; }
+
+/* ---------- Mural de Missões ---------- */
+
+dialog:has(.board) { width: min(640px, calc(100vw - 32px)); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: sticky; top: -20px; margin: -20px -20px 0; padding: 16px 20px 8px; background: var(--card); z-index: 2; }
+.close-x { opacity: 0.7; font-size: 1.1rem; }
+.board { display: grid; gap: 14px; margin-top: 10px; }
+.board-group h3 { font-family: Cinzel, Georgia, serif; font-size: 0.95rem; margin: 0 0 6px; }
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.board-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); }
+.board-item.accepted { opacity: 0.6; }
+.board-item.locked { opacity: 0.5; border-style: dashed; }
+.board-body { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.new-tag { font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; background: var(--hp); color: #fff; vertical-align: middle; }
+
+.loot { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.loot li { padding: 8px 14px; border-radius: 10px; background: var(--card-2); font-weight: 600; animation: pop 0.4s backwards; }
+.loot li:nth-child(2) { animation-delay: 0.15s; }
+.loot li:nth-child(3) { animation-delay: 0.3s; }
+.loot li:nth-child(4) { animation-delay: 0.45s; }
+.loot li.rare { background: color-mix(in srgb, var(--gold) 22%, var(--card-2)); }
+
 .boot-msg { max-width: 520px; margin: 12vh auto 0; text-align: center; }
 .boot-msg h1 { font-size: 2rem; margin-bottom: 12px; }

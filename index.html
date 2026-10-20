@@ -643,6 +643,51 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
 .gear-head { margin-top: 8px; }
 .gear-summary { margin-bottom: 14px; }
 
+/* ---------- Hoje: baú, desafio do dia e Provação ---------- */
+
+.today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.today-grid:empty { display: none; }
+.today-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; font: inherit; color: inherit; }
+.today-card.done { opacity: 0.75; }
+.today-icon { font-size: 2rem; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 14px; background: var(--card-2); }
+.today-body { display: grid; gap: 3px; min-width: 0; }
+.today-actions { display: grid; gap: 6px; }
+.chest-card { cursor: pointer; border-color: color-mix(in srgb, var(--gold) 55%, var(--border)); background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 12%, var(--card)), var(--card)); }
+.chest-card:hover { border-color: var(--gold); }
+.challenge-card { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.wiggle { animation: wiggle 1.6s ease-in-out infinite; }
+@keyframes wiggle { 0%, 70%, 100% { transform: rotate(0); } 76% { transform: rotate(-9deg); } 82% { transform: rotate(8deg); } 88% { transform: rotate(-5deg); } 94% { transform: rotate(3deg); } }
+
+.trial { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; padding: 14px 16px; margin-bottom: 12px; border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); }
+.trial-pips { display: flex; gap: 6px; margin: 4px 0; }
+.pip { width: 26px; height: 10px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); }
+.pip.on { background: var(--accent); border-color: var(--accent); }
+
+.scrolls { font-weight: 700; color: var(--muted); }
+.btn-row.tight { margin-top: 0; gap: 6px; }
+.count-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--hp); color: #fff; font-size: 0.75rem; }
+
+/* ---------- Mural de Missões ---------- */
+
+dialog:has(.board) { width: min(640px, calc(100vw - 32px)); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: sticky; top: -20px; margin: -20px -20px 0; padding: 16px 20px 8px; background: var(--card); z-index: 2; }
+.close-x { opacity: 0.7; font-size: 1.1rem; }
+.board { display: grid; gap: 14px; margin-top: 10px; }
+.board-group h3 { font-family: Cinzel, Georgia, serif; font-size: 0.95rem; margin: 0 0 6px; }
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.board-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); }
+.board-item.accepted { opacity: 0.6; }
+.board-item.locked { opacity: 0.5; border-style: dashed; }
+.board-body { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.new-tag { font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; background: var(--hp); color: #fff; vertical-align: middle; }
+
+.loot { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.loot li { padding: 8px 14px; border-radius: 10px; background: var(--card-2); font-weight: 600; animation: pop 0.4s backwards; }
+.loot li:nth-child(2) { animation-delay: 0.15s; }
+.loot li:nth-child(3) { animation-delay: 0.3s; }
+.loot li:nth-child(4) { animation-delay: 0.45s; }
+.loot li.rare { background: color-mix(in srgb, var(--gold) 22%, var(--card-2)); }
+
 .boot-msg { max-width: 520px; margin: 12vh auto 0; text-align: center; }
 .boot-msg h1 { font-size: 2rem; margin-bottom: 12px; }
 </style>
@@ -678,16 +723,108 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   <div id="toasts" class="toasts" aria-live="assertive"></div>
   <dialog id="modal"></dialog>
   <script>
-// Regras do jogo: funções puras sobre o estado, sem DOM.
-// Funciona no navegador (window.RoutineRPG) e no Node (module.exports).
+// Mural de Missões: missões prontas do jogo, liberadas conforme o nível.
+// Cada atributo tem uma "escada": começa pequeno e vai ficando mais exigente.
+// `trait` liga a missão a um desafio, quando a pessoa o escolheu.
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.RoutineRPG = api;
+  else root.RoutineRPGContent = api;
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const VERSION = 3;
+  const MON_WED_FRI = [1, 3, 5];
+  const TUE_THU_SAT = [2, 4, 6];
+
+  const CATALOG = [
+    // 💪 Força
+    { id: 'str-alongar', attr: 'str', level: 1, type: 'daily', difficulty: 'easy', title: 'Alongar por 5 minutos', trait: 'sedentarismo' },
+    { id: 'str-caminhar10', attr: 'str', level: 1, type: 'daily', difficulty: 'easy', title: 'Caminhar 10 minutos', trait: 'sedentarismo' },
+    { id: 'str-agachar', attr: 'str', level: 2, type: 'daily', difficulty: 'easy', title: 'Fazer 10 agachamentos', trait: 'sedentarismo' },
+    { id: 'str-caminhar30', attr: 'str', level: 3, type: 'daily', difficulty: 'medium', title: 'Caminhar 30 minutos', trait: 'sedentarismo' },
+    { id: 'str-escada', attr: 'str', level: 4, type: 'habit', polarity: 'good', difficulty: 'easy', title: 'Subir escada em vez do elevador', trait: 'sedentarismo' },
+    { id: 'str-treino20', attr: 'str', level: 5, type: 'daily', difficulty: 'medium', title: 'Treino de 20 minutos', days: MON_WED_FRI, trait: 'sedentarismo' },
+    { id: 'str-correr', attr: 'str', level: 7, type: 'daily', difficulty: 'hard', title: 'Correr ou pedalar 30 minutos', days: TUE_THU_SAT, trait: 'sedentarismo' },
+    { id: 'str-treino45', attr: 'str', level: 9, type: 'daily', difficulty: 'hard', title: 'Treino completo de 45 minutos', days: MON_WED_FRI, trait: 'sedentarismo' },
+    { id: 'str-passos', attr: 'str', level: 11, type: 'daily', difficulty: 'hard', title: 'Dar 10 mil passos', trait: 'sedentarismo' },
+    { id: 'str-trilha', attr: 'str', level: 13, type: 'todo', difficulty: 'epic', title: 'Fazer uma trilha ou esporte ao ar livre' },
+
+    // 📚 Inteligência
+    { id: 'int-ler5', attr: 'int', level: 1, type: 'daily', difficulty: 'easy', title: 'Ler 5 páginas', trait: 'estudos' },
+    { id: 'int-palavra', attr: 'int', level: 2, type: 'daily', difficulty: 'easy', title: 'Aprender uma palavra ou fato novo' },
+    { id: 'int-gastos', attr: 'int', level: 2, type: 'daily', difficulty: 'easy', title: 'Anotar os gastos do dia', trait: 'financas' },
+    { id: 'int-estudar20', attr: 'int', level: 3, type: 'daily', difficulty: 'medium', title: 'Estudar 20 minutos sem distração', trait: 'estudos' },
+    { id: 'int-aula', attr: 'int', level: 4, type: 'habit', polarity: 'good', difficulty: 'easy', title: 'Assistir a uma aula ou vídeo educativo', trait: 'estudos' },
+    { id: 'int-ler20', attr: 'int', level: 5, type: 'daily', difficulty: 'medium', title: 'Ler 20 páginas', trait: 'estudos' },
+    { id: 'int-resumo', attr: 'int', level: 6, type: 'daily', difficulty: 'medium', title: 'Resumir algo que aprendi', trait: 'estudos' },
+    { id: 'int-orcamento', attr: 'int', level: 7, type: 'todo', difficulty: 'hard', title: 'Montar o orçamento do mês', trait: 'financas' },
+    { id: 'int-estudar60', attr: 'int', level: 8, type: 'daily', difficulty: 'hard', title: 'Estudar 1 hora em blocos de foco', trait: 'estudos' },
+    { id: 'int-livro', attr: 'int', level: 10, type: 'todo', difficulty: 'epic', title: 'Terminar um livro' },
+    { id: 'int-curso', attr: 'int', level: 13, type: 'todo', difficulty: 'epic', title: 'Concluir um curso ou módulo', trait: 'estudos' },
+
+    // 🧘 Sabedoria
+    { id: 'wis-cama', attr: 'wis', level: 1, type: 'daily', difficulty: 'easy', title: 'Arrumar a cama', trait: 'desorganizacao' },
+    { id: 'wis-respirar', attr: 'wis', level: 1, type: 'daily', difficulty: 'easy', title: 'Respirar fundo por 2 minutos', trait: 'ansiedade' },
+    { id: 'wis-gratidao', attr: 'wis', level: 2, type: 'daily', difficulty: 'easy', title: 'Anotar 3 coisas boas do dia', trait: 'ansiedade' },
+    { id: 'wis-planejar', attr: 'wis', level: 3, type: 'daily', difficulty: 'easy', title: 'Planejar o dia seguinte', trait: 'desorganizacao' },
+    { id: 'wis-dificil', attr: 'wis', level: 3, type: 'daily', difficulty: 'medium', title: 'Fazer primeiro a tarefa mais difícil', trait: 'procrastinacao' },
+    { id: 'wis-meditar', attr: 'wis', level: 4, type: 'daily', difficulty: 'medium', title: 'Meditar 10 minutos', trait: 'ansiedade' },
+    { id: 'wis-sem-redes', attr: 'wis', level: 5, type: 'daily', difficulty: 'medium', title: 'Duas horas sem redes sociais', trait: 'celular' },
+    { id: 'wis-organizar', attr: 'wis', level: 6, type: 'todo', difficulty: 'medium', title: 'Organizar um cômodo ou gaveta', trait: 'desorganizacao' },
+    { id: 'wis-adiado', attr: 'wis', level: 7, type: 'todo', difficulty: 'hard', title: 'Resolver algo que venho adiando', trait: 'procrastinacao' },
+    { id: 'wis-revisao', attr: 'wis', level: 9, type: 'daily', difficulty: 'hard', title: 'Revisão da semana: metas e agenda', days: [0], trait: 'desorganizacao' },
+    { id: 'wis-detox', attr: 'wis', level: 11, type: 'todo', difficulty: 'epic', title: 'Um dia inteiro sem redes sociais', trait: 'celular' },
+
+    // 🎭 Carisma
+    { id: 'cha-bomdia', attr: 'cha', level: 1, type: 'daily', difficulty: 'easy', title: 'Dar bom dia a alguém com atenção', trait: 'timidez' },
+    { id: 'cha-mensagem', attr: 'cha', level: 2, type: 'daily', difficulty: 'easy', title: 'Mandar mensagem para um amigo', trait: 'timidez' },
+    { id: 'cha-elogio', attr: 'cha', level: 3, type: 'habit', polarity: 'good', difficulty: 'easy', title: 'Elogiar alguém de verdade', trait: 'timidez' },
+    { id: 'cha-ligar', attr: 'cha', level: 4, type: 'daily', difficulty: 'medium', title: 'Ligar para alguém da família', days: [0, 3], trait: 'timidez' },
+    { id: 'cha-criar', attr: 'cha', level: 5, type: 'daily', difficulty: 'medium', title: 'Fazer algo criativo por 20 minutos' },
+    { id: 'cha-conversa', attr: 'cha', level: 6, type: 'habit', polarity: 'good', difficulty: 'medium', title: 'Puxar conversa com alguém novo', trait: 'timidez' },
+    { id: 'cha-encontro', attr: 'cha', level: 8, type: 'todo', difficulty: 'hard', title: 'Encontrar um amigo pessoalmente', trait: 'timidez' },
+    { id: 'cha-ajudar', attr: 'cha', level: 10, type: 'todo', difficulty: 'hard', title: 'Ajudar alguém sem esperar nada em troca' },
+    { id: 'cha-reuniao', attr: 'cha', level: 12, type: 'todo', difficulty: 'epic', title: 'Organizar um encontro com amigos', trait: 'timidez' },
+
+    // 🍎 Vitalidade
+    { id: 'vit-copo', attr: 'vit', level: 1, type: 'daily', difficulty: 'easy', title: 'Beber um copo de água ao acordar', trait: 'alimentacao' },
+    { id: 'vit-fruta', attr: 'vit', level: 1, type: 'daily', difficulty: 'easy', title: 'Comer uma fruta', trait: 'alimentacao' },
+    { id: 'vit-agua15', attr: 'vit', level: 2, type: 'daily', difficulty: 'easy', title: 'Beber 1,5 litro de água', trait: 'alimentacao' },
+    { id: 'vit-meianoite', attr: 'vit', level: 3, type: 'daily', difficulty: 'medium', title: 'Deitar antes da meia-noite', trait: 'sono' },
+    { id: 'vit-verdura', attr: 'vit', level: 4, type: 'daily', difficulty: 'medium', title: 'Comer verduras no almoço', trait: 'alimentacao' },
+    { id: 'vit-agua2', attr: 'vit', level: 5, type: 'daily', difficulty: 'medium', title: 'Beber 2 litros de água', trait: 'alimentacao' },
+    { id: 'vit-23h', attr: 'vit', level: 6, type: 'daily', difficulty: 'medium', title: 'Deitar antes das 23h', trait: 'sono' },
+    { id: 'vit-telas', attr: 'vit', level: 7, type: 'daily', difficulty: 'medium', title: 'Sem telas 30 minutos antes de dormir', trait: 'sono' },
+    { id: 'vit-acucar', attr: 'vit', level: 8, type: 'daily', difficulty: 'hard', title: 'Um dia sem açúcar', trait: 'alimentacao' },
+    { id: 'vit-cozinhar', attr: 'vit', level: 10, type: 'todo', difficulty: 'hard', title: 'Cozinhar uma refeição saudável', trait: 'alimentacao' },
+    { id: 'vit-8h', attr: 'vit', level: 12, type: 'daily', difficulty: 'hard', title: 'Dormir 8 horas', trait: 'sono' },
+  ];
+
+  // Título do herói a cada Provação vencida (de 5 em 5 níveis).
+  const TITLES = ['Novato', 'Aprendiz', 'Aventureiro', 'Cavaleiro', 'Campeão', 'Herói Lendário', 'Mito Vivo'];
+
+  const CHESTS = [
+    { name: 'Baú de Madeira', icon: '📦', minStreak: 1 },
+    { name: 'Baú de Prata', icon: '🎁', minStreak: 3 },
+    { name: 'Baú de Ouro', icon: '👑', minStreak: 7 },
+  ];
+
+  return { CATALOG, TITLES, CHESTS };
+});
+</script>
+  <script>
+// Regras do jogo: funções puras sobre o estado, sem DOM.
+// Funciona no navegador (window.RoutineRPG) e no Node (module.exports).
+// O conteúdo (Mural de Missões, títulos, baús) vem de content.js.
+(function (root, factory) {
+  const isNode = typeof module === 'object' && module.exports;
+  const api = factory(isNode ? require('./content.js') : root.RoutineRPGContent);
+  if (isNode) module.exports = api;
+  else root.RoutineRPG = api;
+})(typeof self !== 'undefined' ? self : this, function (CONTENT) {
+  'use strict';
+
+  const VERSION = 4;
   const MAX_CATCHUP_DAYS = 7;
   const MAX_LOG = 150;
   const MAX_HISTORY_DAYS = 400;
@@ -719,6 +856,18 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   const CLASS_BONUS = 0.2;
   const STREAK_BONUS_PER_DAY = 0.1;
   const STREAK_BONUS_CAP = 10;
+
+  // Regras contra "farmar" pontos, pensadas para não atrapalhar quem joga honestamente.
+  const HABIT_XP_PER_DAY = 3; // só os 3 primeiros toques do dia num hábito bom rendem XP
+  const SAME_DAY_TODO = 0.5; // tarefa criada e concluída no mesmo dia rende metade
+  const DIFFICULTY_MIN_LEVEL = { easy: 1, medium: 1, hard: 3, epic: 8 }; // missões criadas pela pessoa
+  const DIFFICULTY_ORDER = ['easy', 'medium', 'hard', 'epic'];
+  const OUTGROWN_LEVELS = 6; // missão do Mural muito abaixo do seu nível rende menos…
+  const OUTGROWN_MULT = 0.6; // …para incentivar a próxima da escada
+  const CHALLENGE_MULT = 2; // o desafio do dia vale o dobro
+  const TRIAL_EVERY = 5; // a cada 5 níveis é preciso vencer uma Provação
+  const TRIAL_GOLD = 100;
+  const MAX_ITEMS = 3; // limite de Pergaminhos de Folga guardados
 
   // ---------- Dificuldades (características do avatar) ----------
   // Cada dificuldade real vira uma característica que evolui com as missões
@@ -991,8 +1140,29 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     return 50 + (level - 1) * 5;
   }
 
+  // Até vencer a Provação o nível fica travado; o XP continua acumulando e
+  // conta inteiro quando ela for vencida.
+  function levelCap(state) {
+    const passed = state.hero.trialsPassed;
+    return passed == null ? Infinity : TRIAL_EVERY * (passed + 1) - 1;
+  }
+
   function heroLevel(state) {
-    return levelFromXp(state.hero.xp);
+    return Math.min(levelFromXp(state.hero.xp), levelCap(state));
+  }
+
+  function heroProgress(state) {
+    const level = heroLevel(state);
+    if (levelFromXp(state.hero.xp) > level) {
+      const needed = xpForLevel(level + 1) - xpForLevel(level);
+      return { level, current: needed, needed, capped: true };
+    }
+    return { ...levelProgress(state.hero.xp), capped: false };
+  }
+
+  function heroTitle(state) {
+    const passed = state.hero.trialsPassed || 0;
+    return CONTENT.TITLES[Math.min(passed, CONTENT.TITLES.length - 1)];
   }
 
   // ---------- Estado ----------
@@ -1012,6 +1182,10 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     return eq;
   }
 
+  function folgaReward() {
+    return { id: uid(), title: 'Pergaminho de Folga', cost: 60, item: 'folga', builtin: true };
+  }
+
   function createState(name, cls, today) {
     const key = today || todayKey();
     const attrs = {};
@@ -1028,18 +1202,26 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         equipment: defaultEquipment(),
         look: null,
         traits: [],
+        trialsPassed: 0,
+        trial: null,
+        items: { folga: 0 },
       },
       quests: [],
       rewards: [
         { id: uid(), title: 'Poção de Vida', cost: 25, heal: 20, builtin: true },
+        folgaReward(),
         { id: uid(), title: 'Um episódio de série', cost: 50 },
         { id: uid(), title: 'Sobremesa favorita', cost: 80 },
       ],
       boss: null,
+      challenge: null,
+      visits: { last: null, streak: 0, best: 0, chestOpened: null },
+      board: { seenLevel: 1 },
+      restDays: [],
       history: {},
       achievements: {},
       log: [],
-      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0, bossesDefeated: 0, bossesSeen: 0 },
+      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0, bossesDefeated: 0, bossesSeen: 0, challenges: 0, chests: 0, trials: 0 },
       lastProcessed: key,
       createdAt: key,
     };
@@ -1064,6 +1246,19 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       state.hero.traits = [];
       state.version = 3;
     }
+    if (state.version === 3) {
+      // Quem já passou dos níveis de Provação não perde nada: elas contam como vencidas.
+      state.hero.trialsPassed = Math.floor(levelFromXp(state.hero.xp) / TRIAL_EVERY);
+      state.hero.trial = null;
+      state.hero.items = { folga: 0 };
+      state.challenge = null;
+      state.visits = { last: null, streak: 0, best: 0, chestOpened: null };
+      state.board = { seenLevel: heroLevel(state) };
+      state.restDays = [];
+      Object.assign(state.stats, { challenges: 0, chests: 0, trials: 0 });
+      if (!state.rewards.some((r) => r.item === 'folga')) state.rewards.splice(1, 0, folgaReward());
+      state.version = 4;
+    }
     return state;
   }
 
@@ -1086,6 +1281,13 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       difficulty: DIFFICULTY[data.difficulty] ? data.difficulty : 'medium',
       createdAt: key,
     };
+    const entry = catalogEntry(data.catalog);
+    if (entry) {
+      quest.catalog = entry.id;
+      quest.level = entry.level;
+    } else if (!data.official) {
+      quest.difficulty = allowedDifficulty(state, quest.difficulty);
+    }
     const trait = activeTrait(state, data.trait);
     if (trait) {
       quest.trait = trait.id;
@@ -1106,6 +1308,49 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     }
     state.quests.push(quest);
     return quest;
+  }
+
+  // Missões criadas pela pessoa não podem ser mais difíceis do que o nível permite.
+  function allowedDifficulty(state, difficulty) {
+    const level = heroLevel(state);
+    let i = DIFFICULTY_ORDER.indexOf(difficulty);
+    while (i > 0 && level < DIFFICULTY_MIN_LEVEL[DIFFICULTY_ORDER[i]]) i--;
+    return DIFFICULTY_ORDER[Math.max(0, i)];
+  }
+
+  // ---------- Mural de Missões ----------
+
+  function catalogEntry(id) {
+    return (id && CONTENT.CATALOG.find((c) => c.id === id)) || null;
+  }
+
+  function hasCatalogQuest(state, id) {
+    return state.quests.some((q) => q.catalog === id);
+  }
+
+  function boardQuests(state) {
+    const level = heroLevel(state);
+    const seen = state.board.seenLevel || 1;
+    return CONTENT.CATALOG.map((c) => ({
+      ...c,
+      unlocked: level >= c.level,
+      accepted: hasCatalogQuest(state, c.id),
+      isNew: level >= c.level && c.level > seen,
+    }));
+  }
+
+  function newBoardCount(state) {
+    return boardQuests(state).filter((c) => c.isNew && !c.accepted).length;
+  }
+
+  function markBoardSeen(state) {
+    state.board.seenLevel = heroLevel(state);
+  }
+
+  function acceptCatalogQuest(state, id, today) {
+    const entry = catalogEntry(id);
+    if (!entry || heroLevel(state) < entry.level || hasCatalogQuest(state, id)) return null;
+    return addQuest(state, { ...entry, catalog: id }, today);
   }
 
   function removeQuest(state, id) {
@@ -1182,7 +1427,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     const titles = new Set(state.quests.map((q) => q.title.toLowerCase()));
     return def.quests
       .filter((q) => !titles.has(q.title.toLowerCase()))
-      .map((q) => addQuest(state, { ...q, attr: def.attr, trait: id }, today));
+      .map((q) => addQuest(state, { ...q, attr: def.attr, trait: id, official: true }, today));
   }
 
   function virtueBonus(state, attr) {
@@ -1236,16 +1481,29 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
 
   // ---------- Recompensas e dano ----------
 
-  function computeReward(state, quest) {
+  function computeReward(state, quest, today) {
+    const key = today || todayKey();
     const diff = DIFFICULTY[quest.difficulty];
+    if (quest.type === 'habit' && habitCount(quest, key) >= HABIT_XP_PER_DAY) return { xp: 0, gold: 0, reduced: 'capped' };
+    let mult = 1;
+    let reduced = null;
+    if (quest.catalog && heroLevel(state) >= quest.level + OUTGROWN_LEVELS) {
+      mult = OUTGROWN_MULT;
+      reduced = 'outgrown';
+    }
+    if (quest.type === 'todo' && quest.createdAt === key) {
+      mult *= SAME_DAY_TODO;
+      reduced = 'sameDay';
+    }
     const b = bonuses(state);
     const streak = quest.type === 'daily' ? Math.min(quest.streak, STREAK_BONUS_CAP) : 0;
     const streakMult = 1 + streak * STREAK_BONUS_PER_DAY;
     const classMult = CLASSES[state.hero.cls].attr === quest.attr ? 1 + CLASS_BONUS : 1;
     const traitMult = 1 + (activeTrait(state, quest.trait) ? TRAIT_BONUS : 0) + virtueBonus(state, quest.attr);
     return {
-      xp: Math.round(diff.xp * streakMult * classMult * traitMult * (1 + b.xp)),
-      gold: Math.round(diff.gold * streakMult * (1 + b.gold)),
+      xp: Math.round(diff.xp * streakMult * classMult * traitMult * (1 + b.xp) * mult),
+      gold: Math.round(diff.gold * streakMult * (1 + b.gold) * mult),
+      reduced,
     };
   }
 
@@ -1266,6 +1524,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       events.newItems = equipNewUnlocks(state, beforeLevel, level);
       events.newItems.forEach((i) => addLog(state, i.icon, `Novo equipamento: ${i.name}!`));
     }
+    if (!hero.trial && levelFromXp(hero.xp) > levelCap(state)) events.trialStarted = startTrial(state);
     if (attr) {
       const attrLevel = levelFromXp(hero.attrs[attr], ATTR_BASE);
       if (attrLevel > beforeAttr) {
@@ -1308,6 +1567,173 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     const before = hero.hp;
     hero.hp = Math.min(max, hero.hp + amount);
     return hero.hp - before;
+  }
+
+  // ---------- Provação ----------
+  // Para passar do nível 4, 9, 14… é preciso ter alguns "dias perfeitos":
+  // todas as diárias do dia cumpridas (ou 3 missões, para quem não tem diárias).
+
+  function startTrial(state, today) {
+    const hero = state.hero;
+    hero.trial = {
+      level: levelCap(state) + 1,
+      need: Math.min(3 + hero.trialsPassed, 7),
+      since: today || state.lastProcessed || todayKey(),
+      days: [],
+    };
+    addLog(state, '🏛️', `Provação do nível ${hero.trial.level}: tenha ${hero.trial.need} dias perfeitos para subir.`);
+    return hero.trial;
+  }
+
+  function perfectDay(state, key) {
+    if (state.restDays.includes(key)) return false;
+    const t = dailyTotals(state, key);
+    if (t.due > 0) return t.done === t.due;
+    return ((state.history[key] && state.history[key].done) || 0) >= 3;
+  }
+
+  function updateTrial(state, key) {
+    const trial = state.hero.trial;
+    if (!trial || key < trial.since) return null;
+    const perfect = perfectDay(state, key);
+    const idx = trial.days.indexOf(key);
+    if (perfect && idx < 0) trial.days.push(key);
+    if (!perfect && idx >= 0) trial.days.splice(idx, 1);
+    if (trial.days.length >= trial.need) return passTrial(state, key);
+    return { progress: trial.days.length, need: trial.need, gained: perfect && idx < 0 };
+  }
+
+  function passTrial(state, key) {
+    const hero = state.hero;
+    const before = heroLevel(state);
+    hero.trialsPassed++;
+    hero.trial = null;
+    hero.gold += TRIAL_GOLD;
+    state.stats.goldEarned += TRIAL_GOLD;
+    state.stats.trials++;
+    const level = heroLevel(state);
+    hero.hp = maxHp(level);
+    const newItems = equipNewUnlocks(state, before, level);
+    addLog(state, '🏛️', `Provação vencida! Agora você é ${heroTitle(state)}, nível ${level}. +${TRIAL_GOLD} ouro.`);
+    newItems.forEach((i) => addLog(state, i.icon, `Novo equipamento: ${i.name}!`));
+    if (levelFromXp(hero.xp) > levelCap(state)) startTrial(state, addDays(key, 1));
+    return { passed: true, level, levelUp: level > before ? level : null, title: heroTitle(state), gold: TRIAL_GOLD, newItems };
+  }
+
+  // ---------- Desafio do dia ----------
+
+  // Sorteio reproduzível: o mesmo dia sorteia o mesmo desafio para o mesmo herói.
+  function seededRandom(seed) {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+    return function () {
+      h = (h + 0x6d2b79f5) | 0;
+      let t = Math.imul(h ^ (h >>> 15), 1 | h);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function pickChallenge(state, key, salt, exclude) {
+    const level = heroLevel(state);
+    const titles = new Set(state.quests.map((q) => q.title.toLowerCase()));
+    const unlocked = CONTENT.CATALOG.filter((c) => c.level <= level && c.type !== 'habit' && c.id !== exclude);
+    let pool = unlocked.filter((c) => !hasCatalogQuest(state, c.id) && !titles.has(c.title.toLowerCase()));
+    if (!pool.length) pool = unlocked;
+    const rng = seededRandom(`${key}|${state.hero.name}|${salt || ''}`);
+    // Metade das vezes, prefere algo ligado aos desafios da pessoa.
+    const active = activeTraits(state).map((t) => t.id);
+    const linked = pool.filter((c) => active.includes(c.trait));
+    if (linked.length && rng() < 0.5) pool = linked;
+    return pool[Math.floor(rng() * pool.length)].id;
+  }
+
+  function ensureChallenge(state, key) {
+    if (state.challenge && state.challenge.key === key) return state.challenge;
+    state.challenge = { key, id: pickChallenge(state, key), done: false, rerolled: false };
+    return state.challenge;
+  }
+
+  function rerollChallenge(state, key) {
+    const c = state.challenge;
+    if (!c || c.key !== key || c.done || c.rerolled) return false;
+    c.id = pickChallenge(state, key, 'troca', c.id);
+    c.rerolled = true;
+    return true;
+  }
+
+  function challengeReward(state) {
+    const entry = catalogEntry(state.challenge && state.challenge.id);
+    if (!entry) return null;
+    const diff = DIFFICULTY[entry.difficulty];
+    const b = bonuses(state);
+    const classMult = CLASSES[state.hero.cls].attr === entry.attr ? 1 + CLASS_BONUS : 1;
+    return {
+      xp: Math.round(diff.xp * CHALLENGE_MULT * classMult * (1 + b.xp)),
+      gold: Math.round(diff.gold * CHALLENGE_MULT * (1 + b.gold)),
+    };
+  }
+
+  function completeChallenge(state, today) {
+    const key = today || todayKey();
+    const c = state.challenge;
+    if (!c || c.key !== key || c.done) return null;
+    const entry = catalogEntry(c.id);
+    const reward = challengeReward(state);
+    c.done = true;
+    const events = grant(state, entry.attr, reward.xp, reward.gold);
+    state.stats.completed++;
+    state.stats.challenges++;
+    historyDay(state, key).done++;
+    addLog(state, '🎲', `Desafio do dia "${entry.title}" concluído: +${reward.xp} XP, +${reward.gold} ouro.`);
+    events.trait = advanceTrait(state, { trait: entry.trait }, reward.xp, key);
+    events.trial = updateTrial(state, key);
+    return rewardResult(state, events, hitBoss(state, reward.xp));
+  }
+
+  // ---------- Baú diário ----------
+
+  function chestTier(streak) {
+    let tier = 0;
+    CONTENT.CHESTS.forEach((c, i) => {
+      if (streak >= c.minStreak) tier = i;
+    });
+    return tier;
+  }
+
+  function registerVisit(state, key) {
+    const v = state.visits;
+    if (v.last === key) return;
+    v.streak = v.last === addDays(key, -1) ? v.streak + 1 : 1;
+    v.best = Math.max(v.best || 0, v.streak);
+    v.last = key;
+  }
+
+  function chestAvailable(state, key) {
+    return state.visits.chestOpened !== (key || todayKey());
+  }
+
+  // Recompensa por voltar: sempre ouro, às vezes XP, cura ou um Pergaminho de Folga.
+  // Quanto mais dias seguidos você abre o app, melhor o baú.
+  function openChest(state, today) {
+    const key = today || todayKey();
+    if (!chestAvailable(state, key)) return null;
+    registerVisit(state, key);
+    state.visits.chestOpened = key;
+    const tier = chestTier(state.visits.streak);
+    const rng = seededRandom(`${key}|${state.hero.name}|bau`);
+    const loot = { tier, chest: CONTENT.CHESTS[tier], gold: [12, 25, 40][tier] + Math.floor(rng() * [8, 15, 25][tier]), xp: 0, healed: 0, folga: 0 };
+    if (rng() < [0.3, 0.5, 0.8][tier]) loot.xp = [10, 20, 35][tier];
+    if (rng() < [0.06, 0.12, 0.25][tier] && state.hero.items.folga < MAX_ITEMS) {
+      loot.folga = 1;
+      state.hero.items.folga++;
+    }
+    loot.healed = heal(state, [5, 10, 20][tier]);
+    loot.events = grant(state, null, loot.xp, loot.gold);
+    state.stats.chests++;
+    addLog(state, loot.chest.icon, `Abriu o ${loot.chest.name}: +${loot.gold} ouro${loot.xp ? `, +${loot.xp} XP` : ''}${loot.folga ? ', um Pergaminho de Folga' : ''}.`);
+    loot.achievements = checkAchievements(state);
+    return loot;
   }
 
   // ---------- Chefe ----------
@@ -1388,6 +1814,10 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       result.levelUp = boss.events.levelUp || result.levelUp;
       result.newItems = (result.newItems || []).concat(boss.events.newItems);
     }
+    if (events.trial && events.trial.passed) {
+      result.levelUp = events.trial.levelUp || result.levelUp;
+      result.newItems = (result.newItems || []).concat(events.trial.newItems);
+    }
     result.achievements = checkAchievements(state);
     return result;
   }
@@ -1402,7 +1832,11 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         quest.count = 0;
         quest.countDate = key;
       }
+      const habitReward = quest.polarity === 'good' ? computeReward(state, quest, key) : null;
       quest.count++;
+      if (habitReward && habitReward.reduced === 'capped') {
+        return { type: 'capped', count: quest.count };
+      }
       if (quest.polarity === 'bad') {
         const dmg = DIFFICULTY[quest.difficulty].damage;
         const result = damage(state, dmg, quest.title);
@@ -1412,12 +1846,13 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${result.damage} de vida.`);
         return { type: 'damage', ...result, bossHealed, traitSetback: trait ? dmg * BAD_HABIT_SETBACK : 0, achievements: checkAchievements(state) };
       }
-      const reward = computeReward(state, quest);
+      const reward = habitReward;
       const events = grant(state, quest.attr, reward.xp, reward.gold);
       state.stats.completed++;
       historyDay(state, key).done++;
       addLog(state, '✨', `"${quest.title}": +${reward.xp} XP, +${reward.gold} ouro.`);
       events.trait = advanceTrait(state, quest, reward.xp, key);
+      events.trial = updateTrial(state, key);
       return rewardResult(state, events, hitBoss(state, reward.xp));
     }
 
@@ -1432,13 +1867,15 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       quest.done = true;
       quest.doneAt = key;
     }
-    const reward = computeReward(state, quest);
+    const reward = computeReward(state, quest, key);
     const events = grant(state, quest.attr, reward.xp, reward.gold);
+    events.reduced = reward.reduced;
     state.stats.completed++;
     historyDay(state, key).done++;
     const streakText = quest.type === 'daily' && quest.streak > 1 ? ` (sequência de ${quest.streak})` : '';
     addLog(state, '✅', `Missão "${quest.title}" concluída${streakText}: +${reward.xp} XP, +${reward.gold} ouro.`);
     events.trait = advanceTrait(state, quest, reward.xp, key);
+    events.trial = updateTrial(state, key);
     const boss = hitBoss(state, reward.xp);
     quest.lastGrant = {
       key,
@@ -1472,6 +1909,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     }
     delete quest.lastGrant;
     state.stats.completed = Math.max(0, state.stats.completed - 1);
+    updateTrial(state, key);
     addLog(state, '↩️', `Desfez "${quest.title}".`);
     return true;
   }
@@ -1491,10 +1929,12 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     if (!reward) return { ok: false, reason: 'not-found' };
     if (state.hero.gold < reward.cost) return { ok: false, reason: 'gold' };
     if (reward.heal && state.hero.hp >= maxHp(heroLevel(state))) return { ok: false, reason: 'full-hp' };
+    if (reward.item && state.hero.items[reward.item] >= MAX_ITEMS) return { ok: false, reason: 'max-items' };
     state.hero.gold -= reward.cost;
     state.stats.rewardsBought++;
     let healed = 0;
     if (reward.heal) healed = heal(state, reward.heal);
+    if (reward.item) state.hero.items[reward.item]++;
     addLog(state, '🛒', `Comprou "${reward.title}" por ${reward.cost} ouro${healed ? ` (+${healed} vida)` : ''}.`);
     return { ok: true, healed, achievements: checkAchievements(state) };
   }
@@ -1504,7 +1944,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   // Também troca o chefe quando começa uma semana nova.
   function processRollover(state, today) {
     const key = today || todayKey();
-    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0, boss: null };
+    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0, boss: null, rested: [] };
     if (!state.lastProcessed) state.lastProcessed = key;
     if (state.lastProcessed < key) {
       let day = state.lastProcessed;
@@ -1516,14 +1956,23 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         const entry = historyDay(state, day);
         entry.due = totals.due;
         entry.dailyDone = totals.done;
-        state.quests.forEach((q) => {
-          if (q.type !== 'daily' || q.createdAt > day || !isScheduled(q, day) || isDoneOn(q, day)) return;
-          q.streak = 0;
-          const result = damage(state, DIFFICULTY[q.difficulty].damage, `"${q.title}" esquecida`);
-          summary.missed.push({ title: q.title, day, damage: result.damage });
-          summary.damage += result.damage;
-          if (result.defeated) summary.defeated = true;
-        });
+        const missed = state.quests.filter((q) => q.type === 'daily' && q.createdAt <= day && isScheduled(q, day) && !isDoneOn(q, day));
+        // Um Pergaminho de Folga protege o dia ruim: sem dano e sem perder sequências.
+        if (missed.length && state.hero.items.folga > 0) {
+          state.hero.items.folga--;
+          state.restDays.push(day);
+          if (state.restDays.length > 60) state.restDays.shift();
+          summary.rested.push({ day, count: missed.length });
+          addLog(state, '📜', `Um Pergaminho de Folga protegeu o dia ${day.split('-').reverse().slice(0, 2).join('/')}.`);
+        } else {
+          missed.forEach((q) => {
+            q.streak = 0;
+            const result = damage(state, DIFFICULTY[q.difficulty].damage, `"${q.title}" esquecida`);
+            summary.missed.push({ title: q.title, day, damage: result.damage });
+            summary.damage += result.damage;
+            if (result.defeated) summary.defeated = true;
+          });
+        }
         const restRate = REST_HEAL + bonuses(state).rest;
         summary.healed += heal(state, Math.ceil(maxHp(heroLevel(state)) * restRate));
       }
@@ -1540,6 +1989,8 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     }
     summary.boss = ensureBoss(state, key);
     if (summary.boss.escaped && summary.boss.escaped.defeated) summary.defeated = true;
+    registerVisit(state, key);
+    ensureChallenge(state, key);
     recordDay(state, key);
     return summary;
   }
@@ -1563,6 +2014,10 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     { id: 'boss-10', icon: '🎖️', name: 'Flagelo dos Monstros', desc: 'Derrote 10 chefes semanais.', check: (s) => s.stats.bossesDefeated >= 10 },
     { id: 'trait-1', icon: '🌱', name: 'Superação', desc: 'Supere uma das suas dificuldades.', check: (s) => s.hero.traits.some((t) => t.overcome) },
     { id: 'trait-3', icon: '🦋', name: 'Metamorfose', desc: 'Supere três dificuldades.', check: (s) => s.hero.traits.filter((t) => t.overcome).length >= 3 },
+    { id: 'visits-7', icon: '📅', name: 'Fiel ao Reino', desc: 'Abra o app 7 dias seguidos.', check: (s) => (s.visits.best || 0) >= 7 },
+    { id: 'visits-30', icon: '🗓️', name: 'Morador do Reino', desc: 'Abra o app 30 dias seguidos.', check: (s) => (s.visits.best || 0) >= 30 },
+    { id: 'challenge-10', icon: '🎲', name: 'Caçador de Surpresas', desc: 'Conclua 10 desafios do dia.', check: (s) => s.stats.challenges >= 10 },
+    { id: 'trial-1', icon: '🏛️', name: 'Provação Vencida', desc: 'Vença sua primeira Provação.', check: (s) => s.stats.trials >= 1 },
     { id: 'legendary', icon: '✴️', name: 'Equipamento Lendário', desc: 'Equipe um item lendário.', check: (s) => Object.keys(SLOTS).some((slot) => { const i = equippedItem(s, slot); return i && i.tier === TIERS.length - 1; }) },
   ];
 
@@ -1588,6 +2043,10 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       typeof state.hero.xp === 'number' &&
       state.hero.equipment &&
       Array.isArray(state.hero.traits) &&
+      state.hero.items &&
+      state.visits &&
+      state.board &&
+      Array.isArray(state.restDays) &&
       Array.isArray(state.quests) &&
       Array.isArray(state.rewards) &&
       state.history
@@ -1605,6 +2064,12 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     TIERS,
     TRAITS,
     TRAIT_STAGES,
+    CATALOG: CONTENT.CATALOG,
+    CHESTS: CONTENT.CHESTS,
+    TITLES: CONTENT.TITLES,
+    DIFFICULTY_MIN_LEVEL,
+    HABIT_XP_PER_DAY,
+    MAX_ITEMS,
     MAX_ACTIVE_TRAITS,
     TRAIT_BONUS,
     EQUIPMENT,
@@ -1618,6 +2083,24 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     levelProgress,
     maxHp,
     heroLevel,
+    heroProgress,
+    heroTitle,
+    levelCap,
+    allowedDifficulty,
+    boardQuests,
+    newBoardCount,
+    markBoardSeen,
+    acceptCatalogQuest,
+    catalogEntry,
+    perfectDay,
+    updateTrial,
+    ensureChallenge,
+    rerollChallenge,
+    challengeReward,
+    completeChallenge,
+    chestTier,
+    chestAvailable,
+    openChest,
     createState,
     migrate,
     addLog,
@@ -1948,6 +2431,10 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
 
   function announce(result) {
     if (!result) return;
+    if (result.type === 'capped') {
+      toast('✋', `XP deste hábito completo por hoje (${G.HABIT_XP_PER_DAY}/${G.HABIT_XP_PER_DAY}). Continua contando!`);
+      return;
+    }
     if (result.type === 'damage') {
       if (result.defeated) toast('💀', `Derrotado! Perdeu o progresso do nível e ${result.lostGold} de ouro.`, 'bad');
       else toast('🩸', `−${result.damage} de vida`, 'bad');
@@ -1955,6 +2442,8 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       if (result.traitSetback) toast('📉', `Seu desafio perdeu ${result.traitSetback} de progresso.`, 'bad');
     } else if (result.type === 'reward') {
       toast('✨', `+${result.xp} XP  ·  +${result.gold} ouro`);
+      if (result.reduced === 'sameDay') toast('🕐', 'Tarefa criada hoje rende metade. Planejar na véspera vale mais!');
+      if (result.trial && !result.trial.passed && result.trial.gained) toast('🏛️', `Dia perfeito! Provação: ${result.trial.progress}/${result.trial.need}`, 'good');
       if (result.boss && !result.boss.defeated) toast(state.boss.icon, `−${result.boss.damage} no ${state.boss.name}`);
       if (result.attrUp) {
         const a = G.ATTRIBUTES[result.attrUp.attr];
@@ -1964,7 +2453,9 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       if (tr && tr.stage != null && !tr.overcome) {
         toast(G.TRAITS[tr.id].icon, `${G.TRAITS[tr.id].name}: agora você está ${G.TRAIT_STAGES[tr.stage].name.toLowerCase()}!`, 'good');
       }
-      if (tr && tr.overcome) virtueModal(tr.id);
+      if (result.trial && result.trial.passed) trialPassedModal(result.trial);
+      else if (result.trialStarted) trialStartModal(result.trialStarted);
+      else if (tr && tr.overcome) virtueModal(tr.id);
       else if (result.boss && result.boss.defeated) bossDefeatedModal(result.boss, result.levelUp, result.newItems);
       else if (result.levelUp) levelUpModal(result.levelUp, result.newItems);
     }
@@ -1987,7 +2478,8 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     save();
     if (state.lastProcessed !== before || summary.boss.spawned) {
       render();
-      if (summary.missed.length || summary.healed || summary.boss.escaped || (summary.boss.spawned && summary.days)) rolloverModal(summary);
+      // Todo dia novo começa com uma tela curta de bom-dia e o baú.
+      if (summary.days) rolloverModal(summary);
     }
   }
 
@@ -2163,7 +2655,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   function heroCard() {
     const h = state.hero;
     const cls = G.CLASSES[h.cls];
-    const prog = G.levelProgress(h.xp);
+    const prog = G.heroProgress(state);
     const max = G.maxHp(prog.level);
     const lowHp = h.hp / max <= 0.3;
     return `
@@ -2172,8 +2664,9 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         <div class="hero-info">
           <div class="hero-top">
             <h1>${esc(h.name)}</h1>
-            <span class="badge">Nv. ${prog.level} · ${cls.name}</span>
+            <span class="badge">Nv. ${prog.level} · ${G.heroTitle(state)} ${cls.name}</span>
             <span class="gold" title="Ouro">🪙 ${h.gold}</span>
+            ${h.items.folga ? `<span class="scrolls" title="Pergaminhos de Folga: protegem um dia ruim">📜 ${h.items.folga}</span>` : ''}
           </div>
           <div class="bar-row">
             <span class="bar-label">❤️</span>
@@ -2183,7 +2676,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
           <div class="bar-row">
             <span class="bar-label">⭐</span>
             <div class="bar xp" role="progressbar" aria-label="Experiência" aria-valuenow="${prog.current}" aria-valuemax="${prog.needed}"><div style="width:${pct(prog.current, prog.needed)}%"></div></div>
-            <span class="bar-value">${prog.current}/${prog.needed}</span>
+            <span class="bar-value">${prog.capped ? 'Provação!' : `${prog.current}/${prog.needed}`}</span>
           </div>
           ${traitChips()}
         </div>
@@ -2200,6 +2693,61 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         </div>
       </header>
     `;
+  }
+
+  function chestCard(today) {
+    if (!G.chestAvailable(state, today)) return '';
+    const streak = state.visits.last === today ? state.visits.streak : state.visits.last === G.addDays(today, -1) ? state.visits.streak + 1 : 1;
+    const chest = G.CHESTS[G.chestTier(streak)];
+    const next = G.CHESTS[G.chestTier(streak) + 1];
+    return `<button class="today-card card chest-card" data-action="chest">
+      <span class="today-icon wiggle">${chest.icon}</span>
+      <span class="today-body">
+        <strong>${chest.name} pronto!</strong>
+        <span class="muted small">${streak} ${streak === 1 ? 'dia seguido' : 'dias seguidos'}${next ? ` · ${next.minStreak - streak} para o ${next.name}` : ''}</span>
+      </span>
+      <span class="btn gold-btn small-btn">Abrir</span>
+    </button>`;
+  }
+
+  function challengeCard(today) {
+    const c = state.challenge;
+    const entry = c && c.key === today && G.catalogEntry(c.id);
+    if (!entry) return '';
+    const a = G.ATTRIBUTES[entry.attr];
+    if (c.done) {
+      return `<div class="today-card card done">
+        <span class="today-icon">✅</span>
+        <span class="today-body"><strong>Desafio do dia concluído!</strong><span class="muted small">Amanhã tem outro. Volte para descobrir!</span></span>
+      </div>`;
+    }
+    const r = G.challengeReward(state);
+    return `<div class="today-card card challenge-card">
+      <span class="today-icon">🎲</span>
+      <span class="today-body">
+        <span class="muted small">Desafio do dia · vale o dobro · some à meia-noite</span>
+        <strong>${esc(entry.title)}</strong>
+        <span class="chips"><span class="chip">${a.icon} ${a.name}</span><span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span></span>
+      </span>
+      <span class="today-actions">
+        <button class="btn primary small-btn" data-action="challenge-done">Fiz!</button>
+        ${c.rerolled ? '' : '<button class="btn ghost small-btn" data-action="challenge-reroll" title="Trocar por outro (uma vez por dia)">🔄 Trocar</button>'}
+      </span>
+    </div>`;
+  }
+
+  function trialCard() {
+    const t = state.hero.trial;
+    if (!t) return '';
+    return `<div class="trial card">
+      <div class="today-icon">🏛️</div>
+      <div class="boss-body">
+        <div class="boss-top"><span class="muted small">Provação para o nível ${t.level}</span><span class="muted small">${t.days.length}/${t.need} dias</span></div>
+        <strong class="boss-name">Prove sua constância</strong>
+        <div class="trial-pips">${Array.from({ length: t.need }, (_, i) => `<span class="pip ${i < t.days.length ? 'on' : ''}"></span>`).join('')}</div>
+        <span class="muted small">Um dia perfeito é cumprir todas as diárias do dia (ou 3 missões, se você não tiver diárias). Os dias não precisam ser seguidos. Seu XP continua acumulando.</span>
+      </div>
+    </div>`;
   }
 
   function bossCard(today) {
@@ -2242,10 +2790,18 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       if (q.streak > 0) chips.push(`<span class="chip streak" title="Sequência atual (melhor: ${q.bestStreak})">🔥 ${q.streak}</span>`);
       if (q.days.length < 7) chips.push(`<span class="chip">${q.days.map((x) => WEEKDAYS[x]).join(' ')}</span>`);
     }
+    const today = G.todayKey();
     if (q.type === 'habit' && q.polarity === 'bad') chips.push(`<span class="chip bad">−${d.damage} ❤️</span>`);
-    else if (!G.isDoneOn(q, G.todayKey())) {
-      const r = G.computeReward(state, q.type === 'daily' ? { ...q, streak: q.streak + 1 } : q);
-      chips.push(`<span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span>`);
+    else if (!G.isDoneOn(q, today)) {
+      const r = G.computeReward(state, q.type === 'daily' ? { ...q, streak: q.streak + 1 } : q, today);
+      if (r.reduced === 'capped') chips.push(`<span class="chip" title="Hábitos rendem XP só ${G.HABIT_XP_PER_DAY} vezes por dia">XP de hoje completo ✓</span>`);
+      else chips.push(`<span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span>`);
+      if (r.reduced === 'sameDay') chips.push('<span class="chip" title="Tarefas criadas e concluídas no mesmo dia rendem metade. Amanhã ela vale inteira.">½ hoje</span>');
+      if (r.reduced === 'outgrown') chips.push('<span class="chip" title="Essa missão já ficou fácil para o seu nível. Veja missões novas no Mural!">fácil para você · veja o Mural</span>');
+    }
+    if (q.type === 'habit' && q.polarity === 'good') {
+      const n = Math.min(G.habitCount(q, today), G.HABIT_XP_PER_DAY);
+      chips.push(`<span class="chip" title="Toques que rendem XP hoje">${n}/${G.HABIT_XP_PER_DAY} hoje</span>`);
     }
     return chips.join('');
   }
@@ -2297,14 +2853,20 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     const finished = todos.filter((q) => q.done);
     const doneCount = todayDailies.filter((q) => G.isDoneOn(q, today)).length;
 
+    const newOnBoard = G.newBoardCount(state);
     return `
+      <div class="today-grid">${chestCard(today)}${challengeCard(today)}</div>
+      ${trialCard()}
       ${bossCard(today)}
       <div class="toolbar">
         <div>
           <strong>${WEEKDAYS[G.dayOfWeek(today)]}, ${today.split('-').reverse().join('/')}</strong>
           <span class="muted small"> · diárias de hoje: ${doneCount}/${todayDailies.length}</span>
         </div>
-        <button class="btn primary" data-action="new-quest">+ Nova missão</button>
+        <div class="btn-row tight">
+          <button class="btn" data-action="board">📋 Mural${newOnBoard ? ` <span class="count-badge">${newOnBoard}</span>` : ''}</button>
+          <button class="btn primary" data-action="new-quest">+ Nova missão</button>
+        </div>
       </div>
       ${todayDailies.length && doneCount === todayDailies.length ? '<p class="banner">🎉 Todas as diárias de hoje concluídas. O reino agradece!</p>' : ''}
       ${questGroup('Diárias', 'Esquecer causa dano na virada do dia', todayDailies, today, 'Nenhuma diária para hoje.')}
@@ -2433,12 +2995,13 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       <ul class="shop">
         ${state.rewards.map((r) => {
           const afford = h.gold >= r.cost;
-          const fullHp = r.heal && h.hp >= max;
+          const fullHp = (r.heal && h.hp >= max) || (r.item && h.items[r.item] >= G.MAX_ITEMS);
           return `<li class="shop-item card">
-            <span class="shop-icon">${r.heal ? '🧪' : '🎁'}</span>
+            <span class="shop-icon">${r.heal ? '🧪' : r.item ? '📜' : '🎁'}</span>
             <div class="shop-body">
               <strong>${esc(r.title)}</strong>
               ${r.heal ? `<span class="muted small">Recupera ${r.heal} de vida</span>` : ''}
+              ${r.item ? `<span class="muted small">Protege sozinho um dia ruim: sem dano e sem perder sequências. Você tem ${h.items.folga}/${G.MAX_ITEMS}.</span>` : ''}
             </div>
             <button class="btn ${afford && !fullHp ? 'gold-btn' : 'ghost'}" data-action="buy" data-id="${r.id}" ${afford && !fullHp ? '' : 'disabled'}>🪙 ${r.cost}</button>
             ${r.builtin ? '' : `<button class="icon-btn" data-action="delete-reward" data-id="${r.id}" aria-label="Remover ${esc(r.title)}" title="Remover">🗑️</button>`}
@@ -2685,6 +3248,11 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
           <li>Subir de nível restaura a vida, aumenta a vida máxima e libera <strong>equipamentos</strong> com bônus.</li>
           <li>Toda semana aparece um <strong>chefe</strong>. Suas missões causam dano nele; hábitos ruins o curam. Se ele sobreviver até domingo, foge e acerta um golpe.</li>
           <li>Missões do atributo da sua classe rendem +20% de XP.</li>
+          <li>O <strong>Mural de Missões</strong> libera missões novas conforme você sobe de nível. Missões que ficaram fáceis demais rendem menos.</li>
+          <li>A cada 5 níveis há uma <strong>Provação</strong>: alguns dias perfeitos (todas as diárias cumpridas) para subir.</li>
+          <li>Todo dia tem um <strong>baú</strong> (melhor com dias seguidos) e um <strong>desafio do dia</strong> que vale o dobro.</li>
+          <li>Hábitos bons rendem XP ${G.HABIT_XP_PER_DAY} vezes por dia. Tarefas criadas e feitas no mesmo dia rendem metade. Dificuldades maiores liberam com o nível.</li>
+          <li>O <strong>Pergaminho de Folga</strong> protege sozinho um dia ruim. Ninguém é perfeito!</li>
           <li>Escolha <strong>desafios</strong> (dificuldades reais) na aba Personagem. Missões ligadas a eles rendem +15% de XP e os fazem evoluir até virarem <strong>virtudes</strong>.</li>
         </ul>
       </div>
@@ -2719,7 +3287,13 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
   function questModal() {
     const attrOptions = Object.entries(G.ATTRIBUTES).map(([id, a]) => `<option value="${id}">${a.icon} ${a.name} — ${a.hint}</option>`).join('');
     const traitOptions = G.activeTraits(state).map((t) => `<option value="${t.id}">${G.TRAITS[t.id].icon} ${G.TRAITS[t.id].name}</option>`).join('');
-    const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`).join('');
+    const level = G.heroLevel(state);
+    const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => {
+      const min = G.DIFFICULTY_MIN_LEVEL[id];
+      return level >= min
+        ? `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`
+        : `<option value="${id}" disabled>${d.name} — libera no nível ${min}</option>`;
+    }).join('');
     openModal(`
       <form id="quest-form" method="dialog">
         <h2>Nova missão</h2>
@@ -2789,6 +3363,102 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     return `<p class="muted small">Novos equipamentos:</p><div class="new-items">${items.map((i) => `<span class="new-item tier-${i.tier}">${i.icon} ${esc(i.name)}</span>`).join('')}</div>`;
   }
 
+  function boardModal() {
+    const board = G.boardQuests(state);
+    const level = G.heroLevel(state);
+    const groups = Object.entries(G.ATTRIBUTES).map(([attr, a]) => {
+      const items = board.filter((c) => c.attr === attr);
+      const open = items.filter((c) => c.unlocked);
+      const locked = items.filter((c) => !c.unlocked).slice(0, 2); // só uma prévia do que vem
+      return `<div class="board-group">
+        <h3>${a.icon} ${a.name}</h3>
+        <ul class="board-list">
+          ${open.map((c) => {
+            const d = G.DIFFICULTY[c.difficulty];
+            const type = { daily: '📅 Diária', habit: '🔁 Hábito', todo: '📌 Tarefa' }[c.type];
+            const linked = c.trait && G.activeTrait(state, c.trait);
+            return `<li class="board-item ${c.accepted ? 'accepted' : ''}">
+              <div class="board-body">
+                <strong>${esc(c.title)} ${c.isNew && !c.accepted ? '<span class="new-tag">nova</span>' : ''}</strong>
+                <span class="chips"><span class="chip">${type}</span><span class="chip diff-${c.difficulty}">${d.name}</span>${linked ? `<span class="chip trait">${G.TRAITS[c.trait].icon} ${G.TRAITS[c.trait].name}</span>` : ''}</span>
+              </div>
+              ${c.accepted ? '<span class="chip reward">Aceita ✓</span>' : `<button class="btn small-btn primary" data-action="accept-catalog" data-id="${c.id}">Aceitar</button>`}
+            </li>`;
+          }).join('')}
+          ${locked.map((c) => `<li class="board-item locked"><div class="board-body"><strong>🔒 ${esc(c.title)}</strong></div><span class="chip">Nv. ${c.level}</span></li>`).join('')}
+        </ul>
+      </div>`;
+    }).join('');
+    openModal(`
+      <div class="modal-head"><h2>📋 Mural de Missões</h2><button class="icon-btn close-x" data-action="close-modal" aria-label="Fechar">✕</button></div>
+      <p class="muted small">Missões prontas, com recompensa definida pelo jogo. Novas aparecem conforme você sobe de nível (você está no ${level}). Quando uma fica fácil demais, ela rende menos: é hora de aceitar a próxima.</p>
+      <div class="board">${groups}</div>
+      <div class="btn-row end"><button class="btn primary" data-action="close-modal">Fechar</button></div>
+    `);
+  }
+
+  function chestModal() {
+    const today = G.todayKey();
+    const streak = state.visits.last === today ? state.visits.streak : 1;
+    const chest = G.CHESTS[G.chestTier(streak)];
+    openModal(`
+      <div class="celebrate chest-modal">
+        <div class="big-icon wiggle">${chest.icon}</div>
+        <h2>${chest.name}</h2>
+        <p class="muted small">Volte todos os dias: com 3 dias seguidos o baú vira de prata, com 7, de ouro.</p>
+        <button class="btn gold-btn" data-action="open-chest">Abrir baú</button>
+      </div>
+    `);
+  }
+
+  function lootModal(loot) {
+    const lines = [`<li><span>🪙</span> +${loot.gold} de ouro</li>`];
+    if (loot.xp) lines.push(`<li><span>⭐</span> +${loot.xp} de XP</li>`);
+    if (loot.healed) lines.push(`<li><span>❤️</span> +${loot.healed} de vida</li>`);
+    if (loot.folga) lines.push('<li class="rare"><span>📜</span> Pergaminho de Folga! <small>(protege um dia ruim)</small></li>');
+    const lvl = loot.events && loot.events.levelUp;
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">✨</div>
+        <h2>Você encontrou:</h2>
+        <ul class="loot">${lines.join('')}</ul>
+        ${lvl ? `<p><strong>⭐ Subiu para o nível ${lvl}!</strong></p>` : ''}
+        ${loot.events && loot.events.trialStarted ? '<p>🏛️ Uma Provação começou: veja na aba Missões.</p>' : ''}
+        <button class="btn primary" data-action="close-modal">Bora pro dia!</button>
+      </div>
+    `);
+  }
+
+  function trialStartModal(trial) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏛️</div>
+        <h2>Provação do nível ${trial.level}</h2>
+        <p>Você chegou longe! Para subir, prove sua constância: tenha <strong>${trial.need} dias perfeitos</strong>, cumprindo todas as diárias do dia.</p>
+        <p class="muted small">Os dias não precisam ser seguidos e seu XP continua acumulando, sem perder nada.</p>
+        <button class="btn primary" data-action="close-modal">Aceito a Provação</button>
+      </div>
+    `);
+  }
+
+  function trialPassedModal(trial) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏆</div>
+        <h2>Provação vencida!</h2>
+        <p>Agora você é <strong>${esc(trial.title)}</strong> e chegou ao nível ${trial.level}. +${trial.gold} ouro.</p>
+        ${newItemsHtml(trial.newItems)}
+        ${boardHint()}
+        <button class="btn primary" data-action="close-modal">Glória!</button>
+      </div>
+    `);
+  }
+
+  function boardHint() {
+    const n = G.newBoardCount(state);
+    return n ? `<p>📋 ${n} ${n === 1 ? 'nova missão' : 'novas missões'} no Mural!</p>` : '';
+  }
+
   function virtueModal(id) {
     const def = G.TRAITS[id];
     openModal(`
@@ -2843,6 +3513,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         <h2>Nível ${level}!</h2>
         <p>Sua vida máxima subiu para ${G.maxHp(level)} e foi totalmente restaurada.</p>
         ${newItemsHtml(items)}
+        ${boardHint()}
         <button class="btn primary" data-action="close-modal">Continuar a aventura</button>
       </div>
     `);
@@ -2866,16 +3537,20 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
     const missed = summary.missed;
     const boss = summary.boss || {};
     const title = summary.defeated ? 'Você foi derrotado…' : missed.length || boss.escaped ? 'Um novo dia, cicatrizes do anterior' : 'Bom dia, herói!';
+    const rested = (summary.rested || []).length;
     openModal(`
       <div class="celebrate">
         <div class="big-icon">${summary.defeated ? '💀' : missed.length ? '⚔️' : '🌅'}</div>
         <h2>${title}</h2>
-        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${shortDate(m.day)}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : '<p>Nenhuma diária esquecida. Continue assim!</p>'}
+        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${shortDate(m.day)}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : (rested ? '' : '<p>Nenhuma diária esquecida. Continue assim!</p>')}
         ${boss.escaped ? `<p>${boss.escaped.icon} ${esc(boss.escaped.name)} escapou e acertou um golpe: <span class="bad-text">−${boss.escaped.damage} ❤️</span></p>` : ''}
         ${summary.defeated ? '<p>Você perdeu o progresso do nível atual e metade do ouro, mas está de pé novamente.</p>' : ''}
         ${summary.healed ? `<p class="muted small">O descanso recuperou ${summary.healed} de vida.</p>` : ''}
         ${boss.spawned ? `<p><strong>${boss.spawned.icon} ${esc(boss.spawned.name)}</strong> apareceu! Vida: ${boss.spawned.maxHp}.</p>` : ''}
-        <button class="btn primary" data-action="close-modal">Encarar o dia</button>
+        ${(summary.rested || []).map((r) => `<p>📜 Um Pergaminho de Folga protegeu ${shortDate(r.day)}: sem dano e suas sequências continuam.</p>`).join('')}
+        ${G.chestAvailable(state, G.todayKey())
+          ? '<button class="btn gold-btn" data-action="chest">🎁 Abrir o baú do dia</button>'
+          : '<button class="btn primary" data-action="close-modal">Encarar o dia</button>'}
       </div>
     `);
   }
@@ -2914,6 +3589,38 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
         break;
       case 'step':
         goToStep(btn.closest('form'), Number(id));
+        break;
+      case 'board':
+        act(() => G.markBoardSeen(state));
+        boardModal();
+        break;
+      case 'accept-catalog': {
+        const q = act(() => G.acceptCatalogQuest(state, id, today));
+        if (q) {
+          toast('📋', `"${q.title}" foi para suas missões!`, 'good');
+          boardModal();
+        }
+        break;
+      }
+      case 'chest':
+        checkDay();
+        chestModal();
+        break;
+      case 'open-chest': {
+        const loot = act(() => G.openChest(state, today));
+        if (loot) {
+          lootModal(loot);
+          (loot.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
+        } else closeModal();
+        break;
+      }
+      case 'challenge-done':
+        checkDay();
+        announce(act(() => G.completeChallenge(state, today)));
+        break;
+      case 'challenge-reroll':
+        act(() => G.rerollChallenge(state, today));
+        toast('🎲', 'Novo desafio sorteado!');
         break;
       case 'edit-look':
         lookModal();
@@ -3061,6 +3768,7 @@ dialog::backdrop { background: rgba(10, 6, 20, 0.6); backdrop-filter: blur(3px);
       tab = 'quests';
       save();
       render();
+      window.scrollTo(0, 0);
       toast(G.CLASSES[state.hero.cls].icon, 'Sua jornada começou!', 'good');
     } else if (form.id === 'quest-form') {
       e.preventDefault();

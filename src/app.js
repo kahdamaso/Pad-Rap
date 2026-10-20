@@ -145,6 +145,10 @@
 
   function announce(result) {
     if (!result) return;
+    if (result.type === 'capped') {
+      toast('✋', `XP deste hábito completo por hoje (${G.HABIT_XP_PER_DAY}/${G.HABIT_XP_PER_DAY}). Continua contando!`);
+      return;
+    }
     if (result.type === 'damage') {
       if (result.defeated) toast('💀', `Derrotado! Perdeu o progresso do nível e ${result.lostGold} de ouro.`, 'bad');
       else toast('🩸', `−${result.damage} de vida`, 'bad');
@@ -152,6 +156,8 @@
       if (result.traitSetback) toast('📉', `Seu desafio perdeu ${result.traitSetback} de progresso.`, 'bad');
     } else if (result.type === 'reward') {
       toast('✨', `+${result.xp} XP  ·  +${result.gold} ouro`);
+      if (result.reduced === 'sameDay') toast('🕐', 'Tarefa criada hoje rende metade. Planejar na véspera vale mais!');
+      if (result.trial && !result.trial.passed && result.trial.gained) toast('🏛️', `Dia perfeito! Provação: ${result.trial.progress}/${result.trial.need}`, 'good');
       if (result.boss && !result.boss.defeated) toast(state.boss.icon, `−${result.boss.damage} no ${state.boss.name}`);
       if (result.attrUp) {
         const a = G.ATTRIBUTES[result.attrUp.attr];
@@ -161,7 +167,9 @@
       if (tr && tr.stage != null && !tr.overcome) {
         toast(G.TRAITS[tr.id].icon, `${G.TRAITS[tr.id].name}: agora você está ${G.TRAIT_STAGES[tr.stage].name.toLowerCase()}!`, 'good');
       }
-      if (tr && tr.overcome) virtueModal(tr.id);
+      if (result.trial && result.trial.passed) trialPassedModal(result.trial);
+      else if (result.trialStarted) trialStartModal(result.trialStarted);
+      else if (tr && tr.overcome) virtueModal(tr.id);
       else if (result.boss && result.boss.defeated) bossDefeatedModal(result.boss, result.levelUp, result.newItems);
       else if (result.levelUp) levelUpModal(result.levelUp, result.newItems);
     }
@@ -184,7 +192,8 @@
     save();
     if (state.lastProcessed !== before || summary.boss.spawned) {
       render();
-      if (summary.missed.length || summary.healed || summary.boss.escaped || (summary.boss.spawned && summary.days)) rolloverModal(summary);
+      // Todo dia novo começa com uma tela curta de bom-dia e o baú.
+      if (summary.days) rolloverModal(summary);
     }
   }
 
@@ -360,7 +369,7 @@
   function heroCard() {
     const h = state.hero;
     const cls = G.CLASSES[h.cls];
-    const prog = G.levelProgress(h.xp);
+    const prog = G.heroProgress(state);
     const max = G.maxHp(prog.level);
     const lowHp = h.hp / max <= 0.3;
     return `
@@ -369,8 +378,9 @@
         <div class="hero-info">
           <div class="hero-top">
             <h1>${esc(h.name)}</h1>
-            <span class="badge">Nv. ${prog.level} · ${cls.name}</span>
+            <span class="badge">Nv. ${prog.level} · ${G.heroTitle(state)} ${cls.name}</span>
             <span class="gold" title="Ouro">🪙 ${h.gold}</span>
+            ${h.items.folga ? `<span class="scrolls" title="Pergaminhos de Folga: protegem um dia ruim">📜 ${h.items.folga}</span>` : ''}
           </div>
           <div class="bar-row">
             <span class="bar-label">❤️</span>
@@ -380,7 +390,7 @@
           <div class="bar-row">
             <span class="bar-label">⭐</span>
             <div class="bar xp" role="progressbar" aria-label="Experiência" aria-valuenow="${prog.current}" aria-valuemax="${prog.needed}"><div style="width:${pct(prog.current, prog.needed)}%"></div></div>
-            <span class="bar-value">${prog.current}/${prog.needed}</span>
+            <span class="bar-value">${prog.capped ? 'Provação!' : `${prog.current}/${prog.needed}`}</span>
           </div>
           ${traitChips()}
         </div>
@@ -397,6 +407,61 @@
         </div>
       </header>
     `;
+  }
+
+  function chestCard(today) {
+    if (!G.chestAvailable(state, today)) return '';
+    const streak = state.visits.last === today ? state.visits.streak : state.visits.last === G.addDays(today, -1) ? state.visits.streak + 1 : 1;
+    const chest = G.CHESTS[G.chestTier(streak)];
+    const next = G.CHESTS[G.chestTier(streak) + 1];
+    return `<button class="today-card card chest-card" data-action="chest">
+      <span class="today-icon wiggle">${chest.icon}</span>
+      <span class="today-body">
+        <strong>${chest.name} pronto!</strong>
+        <span class="muted small">${streak} ${streak === 1 ? 'dia seguido' : 'dias seguidos'}${next ? ` · ${next.minStreak - streak} para o ${next.name}` : ''}</span>
+      </span>
+      <span class="btn gold-btn small-btn">Abrir</span>
+    </button>`;
+  }
+
+  function challengeCard(today) {
+    const c = state.challenge;
+    const entry = c && c.key === today && G.catalogEntry(c.id);
+    if (!entry) return '';
+    const a = G.ATTRIBUTES[entry.attr];
+    if (c.done) {
+      return `<div class="today-card card done">
+        <span class="today-icon">✅</span>
+        <span class="today-body"><strong>Desafio do dia concluído!</strong><span class="muted small">Amanhã tem outro. Volte para descobrir!</span></span>
+      </div>`;
+    }
+    const r = G.challengeReward(state);
+    return `<div class="today-card card challenge-card">
+      <span class="today-icon">🎲</span>
+      <span class="today-body">
+        <span class="muted small">Desafio do dia · vale o dobro · some à meia-noite</span>
+        <strong>${esc(entry.title)}</strong>
+        <span class="chips"><span class="chip">${a.icon} ${a.name}</span><span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span></span>
+      </span>
+      <span class="today-actions">
+        <button class="btn primary small-btn" data-action="challenge-done">Fiz!</button>
+        ${c.rerolled ? '' : '<button class="btn ghost small-btn" data-action="challenge-reroll" title="Trocar por outro (uma vez por dia)">🔄 Trocar</button>'}
+      </span>
+    </div>`;
+  }
+
+  function trialCard() {
+    const t = state.hero.trial;
+    if (!t) return '';
+    return `<div class="trial card">
+      <div class="today-icon">🏛️</div>
+      <div class="boss-body">
+        <div class="boss-top"><span class="muted small">Provação para o nível ${t.level}</span><span class="muted small">${t.days.length}/${t.need} dias</span></div>
+        <strong class="boss-name">Prove sua constância</strong>
+        <div class="trial-pips">${Array.from({ length: t.need }, (_, i) => `<span class="pip ${i < t.days.length ? 'on' : ''}"></span>`).join('')}</div>
+        <span class="muted small">Um dia perfeito é cumprir todas as diárias do dia (ou 3 missões, se você não tiver diárias). Os dias não precisam ser seguidos. Seu XP continua acumulando.</span>
+      </div>
+    </div>`;
   }
 
   function bossCard(today) {
@@ -439,10 +504,18 @@
       if (q.streak > 0) chips.push(`<span class="chip streak" title="Sequência atual (melhor: ${q.bestStreak})">🔥 ${q.streak}</span>`);
       if (q.days.length < 7) chips.push(`<span class="chip">${q.days.map((x) => WEEKDAYS[x]).join(' ')}</span>`);
     }
+    const today = G.todayKey();
     if (q.type === 'habit' && q.polarity === 'bad') chips.push(`<span class="chip bad">−${d.damage} ❤️</span>`);
-    else if (!G.isDoneOn(q, G.todayKey())) {
-      const r = G.computeReward(state, q.type === 'daily' ? { ...q, streak: q.streak + 1 } : q);
-      chips.push(`<span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span>`);
+    else if (!G.isDoneOn(q, today)) {
+      const r = G.computeReward(state, q.type === 'daily' ? { ...q, streak: q.streak + 1 } : q, today);
+      if (r.reduced === 'capped') chips.push(`<span class="chip" title="Hábitos rendem XP só ${G.HABIT_XP_PER_DAY} vezes por dia">XP de hoje completo ✓</span>`);
+      else chips.push(`<span class="chip reward">+${r.xp} XP · +${r.gold} 🪙</span>`);
+      if (r.reduced === 'sameDay') chips.push('<span class="chip" title="Tarefas criadas e concluídas no mesmo dia rendem metade. Amanhã ela vale inteira.">½ hoje</span>');
+      if (r.reduced === 'outgrown') chips.push('<span class="chip" title="Essa missão já ficou fácil para o seu nível. Veja missões novas no Mural!">fácil para você · veja o Mural</span>');
+    }
+    if (q.type === 'habit' && q.polarity === 'good') {
+      const n = Math.min(G.habitCount(q, today), G.HABIT_XP_PER_DAY);
+      chips.push(`<span class="chip" title="Toques que rendem XP hoje">${n}/${G.HABIT_XP_PER_DAY} hoje</span>`);
     }
     return chips.join('');
   }
@@ -494,14 +567,20 @@
     const finished = todos.filter((q) => q.done);
     const doneCount = todayDailies.filter((q) => G.isDoneOn(q, today)).length;
 
+    const newOnBoard = G.newBoardCount(state);
     return `
+      <div class="today-grid">${chestCard(today)}${challengeCard(today)}</div>
+      ${trialCard()}
       ${bossCard(today)}
       <div class="toolbar">
         <div>
           <strong>${WEEKDAYS[G.dayOfWeek(today)]}, ${today.split('-').reverse().join('/')}</strong>
           <span class="muted small"> · diárias de hoje: ${doneCount}/${todayDailies.length}</span>
         </div>
-        <button class="btn primary" data-action="new-quest">+ Nova missão</button>
+        <div class="btn-row tight">
+          <button class="btn" data-action="board">📋 Mural${newOnBoard ? ` <span class="count-badge">${newOnBoard}</span>` : ''}</button>
+          <button class="btn primary" data-action="new-quest">+ Nova missão</button>
+        </div>
       </div>
       ${todayDailies.length && doneCount === todayDailies.length ? '<p class="banner">🎉 Todas as diárias de hoje concluídas. O reino agradece!</p>' : ''}
       ${questGroup('Diárias', 'Esquecer causa dano na virada do dia', todayDailies, today, 'Nenhuma diária para hoje.')}
@@ -630,12 +709,13 @@
       <ul class="shop">
         ${state.rewards.map((r) => {
           const afford = h.gold >= r.cost;
-          const fullHp = r.heal && h.hp >= max;
+          const fullHp = (r.heal && h.hp >= max) || (r.item && h.items[r.item] >= G.MAX_ITEMS);
           return `<li class="shop-item card">
-            <span class="shop-icon">${r.heal ? '🧪' : '🎁'}</span>
+            <span class="shop-icon">${r.heal ? '🧪' : r.item ? '📜' : '🎁'}</span>
             <div class="shop-body">
               <strong>${esc(r.title)}</strong>
               ${r.heal ? `<span class="muted small">Recupera ${r.heal} de vida</span>` : ''}
+              ${r.item ? `<span class="muted small">Protege sozinho um dia ruim: sem dano e sem perder sequências. Você tem ${h.items.folga}/${G.MAX_ITEMS}.</span>` : ''}
             </div>
             <button class="btn ${afford && !fullHp ? 'gold-btn' : 'ghost'}" data-action="buy" data-id="${r.id}" ${afford && !fullHp ? '' : 'disabled'}>🪙 ${r.cost}</button>
             ${r.builtin ? '' : `<button class="icon-btn" data-action="delete-reward" data-id="${r.id}" aria-label="Remover ${esc(r.title)}" title="Remover">🗑️</button>`}
@@ -882,6 +962,11 @@
           <li>Subir de nível restaura a vida, aumenta a vida máxima e libera <strong>equipamentos</strong> com bônus.</li>
           <li>Toda semana aparece um <strong>chefe</strong>. Suas missões causam dano nele; hábitos ruins o curam. Se ele sobreviver até domingo, foge e acerta um golpe.</li>
           <li>Missões do atributo da sua classe rendem +20% de XP.</li>
+          <li>O <strong>Mural de Missões</strong> libera missões novas conforme você sobe de nível. Missões que ficaram fáceis demais rendem menos.</li>
+          <li>A cada 5 níveis há uma <strong>Provação</strong>: alguns dias perfeitos (todas as diárias cumpridas) para subir.</li>
+          <li>Todo dia tem um <strong>baú</strong> (melhor com dias seguidos) e um <strong>desafio do dia</strong> que vale o dobro.</li>
+          <li>Hábitos bons rendem XP ${G.HABIT_XP_PER_DAY} vezes por dia. Tarefas criadas e feitas no mesmo dia rendem metade. Dificuldades maiores liberam com o nível.</li>
+          <li>O <strong>Pergaminho de Folga</strong> protege sozinho um dia ruim. Ninguém é perfeito!</li>
           <li>Escolha <strong>desafios</strong> (dificuldades reais) na aba Personagem. Missões ligadas a eles rendem +15% de XP e os fazem evoluir até virarem <strong>virtudes</strong>.</li>
         </ul>
       </div>
@@ -916,7 +1001,13 @@
   function questModal() {
     const attrOptions = Object.entries(G.ATTRIBUTES).map(([id, a]) => `<option value="${id}">${a.icon} ${a.name} — ${a.hint}</option>`).join('');
     const traitOptions = G.activeTraits(state).map((t) => `<option value="${t.id}">${G.TRAITS[t.id].icon} ${G.TRAITS[t.id].name}</option>`).join('');
-    const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`).join('');
+    const level = G.heroLevel(state);
+    const diffOptions = Object.entries(G.DIFFICULTY).map(([id, d]) => {
+      const min = G.DIFFICULTY_MIN_LEVEL[id];
+      return level >= min
+        ? `<option value="${id}" ${id === 'medium' ? 'selected' : ''}>${d.name} (${d.xp} XP · ${d.gold} ouro)</option>`
+        : `<option value="${id}" disabled>${d.name} — libera no nível ${min}</option>`;
+    }).join('');
     openModal(`
       <form id="quest-form" method="dialog">
         <h2>Nova missão</h2>
@@ -986,6 +1077,102 @@
     return `<p class="muted small">Novos equipamentos:</p><div class="new-items">${items.map((i) => `<span class="new-item tier-${i.tier}">${i.icon} ${esc(i.name)}</span>`).join('')}</div>`;
   }
 
+  function boardModal() {
+    const board = G.boardQuests(state);
+    const level = G.heroLevel(state);
+    const groups = Object.entries(G.ATTRIBUTES).map(([attr, a]) => {
+      const items = board.filter((c) => c.attr === attr);
+      const open = items.filter((c) => c.unlocked);
+      const locked = items.filter((c) => !c.unlocked).slice(0, 2); // só uma prévia do que vem
+      return `<div class="board-group">
+        <h3>${a.icon} ${a.name}</h3>
+        <ul class="board-list">
+          ${open.map((c) => {
+            const d = G.DIFFICULTY[c.difficulty];
+            const type = { daily: '📅 Diária', habit: '🔁 Hábito', todo: '📌 Tarefa' }[c.type];
+            const linked = c.trait && G.activeTrait(state, c.trait);
+            return `<li class="board-item ${c.accepted ? 'accepted' : ''}">
+              <div class="board-body">
+                <strong>${esc(c.title)} ${c.isNew && !c.accepted ? '<span class="new-tag">nova</span>' : ''}</strong>
+                <span class="chips"><span class="chip">${type}</span><span class="chip diff-${c.difficulty}">${d.name}</span>${linked ? `<span class="chip trait">${G.TRAITS[c.trait].icon} ${G.TRAITS[c.trait].name}</span>` : ''}</span>
+              </div>
+              ${c.accepted ? '<span class="chip reward">Aceita ✓</span>' : `<button class="btn small-btn primary" data-action="accept-catalog" data-id="${c.id}">Aceitar</button>`}
+            </li>`;
+          }).join('')}
+          ${locked.map((c) => `<li class="board-item locked"><div class="board-body"><strong>🔒 ${esc(c.title)}</strong></div><span class="chip">Nv. ${c.level}</span></li>`).join('')}
+        </ul>
+      </div>`;
+    }).join('');
+    openModal(`
+      <div class="modal-head"><h2>📋 Mural de Missões</h2><button class="icon-btn close-x" data-action="close-modal" aria-label="Fechar">✕</button></div>
+      <p class="muted small">Missões prontas, com recompensa definida pelo jogo. Novas aparecem conforme você sobe de nível (você está no ${level}). Quando uma fica fácil demais, ela rende menos: é hora de aceitar a próxima.</p>
+      <div class="board">${groups}</div>
+      <div class="btn-row end"><button class="btn primary" data-action="close-modal">Fechar</button></div>
+    `);
+  }
+
+  function chestModal() {
+    const today = G.todayKey();
+    const streak = state.visits.last === today ? state.visits.streak : 1;
+    const chest = G.CHESTS[G.chestTier(streak)];
+    openModal(`
+      <div class="celebrate chest-modal">
+        <div class="big-icon wiggle">${chest.icon}</div>
+        <h2>${chest.name}</h2>
+        <p class="muted small">Volte todos os dias: com 3 dias seguidos o baú vira de prata, com 7, de ouro.</p>
+        <button class="btn gold-btn" data-action="open-chest">Abrir baú</button>
+      </div>
+    `);
+  }
+
+  function lootModal(loot) {
+    const lines = [`<li><span>🪙</span> +${loot.gold} de ouro</li>`];
+    if (loot.xp) lines.push(`<li><span>⭐</span> +${loot.xp} de XP</li>`);
+    if (loot.healed) lines.push(`<li><span>❤️</span> +${loot.healed} de vida</li>`);
+    if (loot.folga) lines.push('<li class="rare"><span>📜</span> Pergaminho de Folga! <small>(protege um dia ruim)</small></li>');
+    const lvl = loot.events && loot.events.levelUp;
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">✨</div>
+        <h2>Você encontrou:</h2>
+        <ul class="loot">${lines.join('')}</ul>
+        ${lvl ? `<p><strong>⭐ Subiu para o nível ${lvl}!</strong></p>` : ''}
+        ${loot.events && loot.events.trialStarted ? '<p>🏛️ Uma Provação começou: veja na aba Missões.</p>' : ''}
+        <button class="btn primary" data-action="close-modal">Bora pro dia!</button>
+      </div>
+    `);
+  }
+
+  function trialStartModal(trial) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏛️</div>
+        <h2>Provação do nível ${trial.level}</h2>
+        <p>Você chegou longe! Para subir, prove sua constância: tenha <strong>${trial.need} dias perfeitos</strong>, cumprindo todas as diárias do dia.</p>
+        <p class="muted small">Os dias não precisam ser seguidos e seu XP continua acumulando, sem perder nada.</p>
+        <button class="btn primary" data-action="close-modal">Aceito a Provação</button>
+      </div>
+    `);
+  }
+
+  function trialPassedModal(trial) {
+    openModal(`
+      <div class="celebrate">
+        <div class="big-icon">🏆</div>
+        <h2>Provação vencida!</h2>
+        <p>Agora você é <strong>${esc(trial.title)}</strong> e chegou ao nível ${trial.level}. +${trial.gold} ouro.</p>
+        ${newItemsHtml(trial.newItems)}
+        ${boardHint()}
+        <button class="btn primary" data-action="close-modal">Glória!</button>
+      </div>
+    `);
+  }
+
+  function boardHint() {
+    const n = G.newBoardCount(state);
+    return n ? `<p>📋 ${n} ${n === 1 ? 'nova missão' : 'novas missões'} no Mural!</p>` : '';
+  }
+
   function virtueModal(id) {
     const def = G.TRAITS[id];
     openModal(`
@@ -1040,6 +1227,7 @@
         <h2>Nível ${level}!</h2>
         <p>Sua vida máxima subiu para ${G.maxHp(level)} e foi totalmente restaurada.</p>
         ${newItemsHtml(items)}
+        ${boardHint()}
         <button class="btn primary" data-action="close-modal">Continuar a aventura</button>
       </div>
     `);
@@ -1063,16 +1251,20 @@
     const missed = summary.missed;
     const boss = summary.boss || {};
     const title = summary.defeated ? 'Você foi derrotado…' : missed.length || boss.escaped ? 'Um novo dia, cicatrizes do anterior' : 'Bom dia, herói!';
+    const rested = (summary.rested || []).length;
     openModal(`
       <div class="celebrate">
         <div class="big-icon">${summary.defeated ? '💀' : missed.length ? '⚔️' : '🌅'}</div>
         <h2>${title}</h2>
-        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${shortDate(m.day)}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : '<p>Nenhuma diária esquecida. Continue assim!</p>'}
+        ${missed.length ? `<p>Missões esquecidas:</p><ul class="missed">${missed.map((m) => `<li>${esc(m.title)} <span class="muted small">${shortDate(m.day)}</span> <span class="bad-text">−${m.damage} ❤️</span></li>`).join('')}</ul>` : (rested ? '' : '<p>Nenhuma diária esquecida. Continue assim!</p>')}
         ${boss.escaped ? `<p>${boss.escaped.icon} ${esc(boss.escaped.name)} escapou e acertou um golpe: <span class="bad-text">−${boss.escaped.damage} ❤️</span></p>` : ''}
         ${summary.defeated ? '<p>Você perdeu o progresso do nível atual e metade do ouro, mas está de pé novamente.</p>' : ''}
         ${summary.healed ? `<p class="muted small">O descanso recuperou ${summary.healed} de vida.</p>` : ''}
         ${boss.spawned ? `<p><strong>${boss.spawned.icon} ${esc(boss.spawned.name)}</strong> apareceu! Vida: ${boss.spawned.maxHp}.</p>` : ''}
-        <button class="btn primary" data-action="close-modal">Encarar o dia</button>
+        ${(summary.rested || []).map((r) => `<p>📜 Um Pergaminho de Folga protegeu ${shortDate(r.day)}: sem dano e suas sequências continuam.</p>`).join('')}
+        ${G.chestAvailable(state, G.todayKey())
+          ? '<button class="btn gold-btn" data-action="chest">🎁 Abrir o baú do dia</button>'
+          : '<button class="btn primary" data-action="close-modal">Encarar o dia</button>'}
       </div>
     `);
   }
@@ -1111,6 +1303,38 @@
         break;
       case 'step':
         goToStep(btn.closest('form'), Number(id));
+        break;
+      case 'board':
+        act(() => G.markBoardSeen(state));
+        boardModal();
+        break;
+      case 'accept-catalog': {
+        const q = act(() => G.acceptCatalogQuest(state, id, today));
+        if (q) {
+          toast('📋', `"${q.title}" foi para suas missões!`, 'good');
+          boardModal();
+        }
+        break;
+      }
+      case 'chest':
+        checkDay();
+        chestModal();
+        break;
+      case 'open-chest': {
+        const loot = act(() => G.openChest(state, today));
+        if (loot) {
+          lootModal(loot);
+          (loot.achievements || []).forEach((a) => toast('🏆', `Conquista: ${a.name}`, 'gold'));
+        } else closeModal();
+        break;
+      }
+      case 'challenge-done':
+        checkDay();
+        announce(act(() => G.completeChallenge(state, today)));
+        break;
+      case 'challenge-reroll':
+        act(() => G.rerollChallenge(state, today));
+        toast('🎲', 'Novo desafio sorteado!');
         break;
       case 'edit-look':
         lookModal();
@@ -1258,6 +1482,7 @@
       tab = 'quests';
       save();
       render();
+      window.scrollTo(0, 0);
       toast(G.CLASSES[state.hero.cls].icon, 'Sua jornada começou!', 'good');
     } else if (form.id === 'quest-form') {
       e.preventDefault();

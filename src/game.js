@@ -1,13 +1,15 @@
 // Regras do jogo: funções puras sobre o estado, sem DOM.
 // Funciona no navegador (window.RoutineRPG) e no Node (module.exports).
+// O conteúdo (Mural de Missões, títulos, baús) vem de content.js.
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  const isNode = typeof module === 'object' && module.exports;
+  const api = factory(isNode ? require('./content.js') : root.RoutineRPGContent);
+  if (isNode) module.exports = api;
   else root.RoutineRPG = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (CONTENT) {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const MAX_CATCHUP_DAYS = 7;
   const MAX_LOG = 150;
   const MAX_HISTORY_DAYS = 400;
@@ -39,6 +41,18 @@
   const CLASS_BONUS = 0.2;
   const STREAK_BONUS_PER_DAY = 0.1;
   const STREAK_BONUS_CAP = 10;
+
+  // Regras contra "farmar" pontos, pensadas para não atrapalhar quem joga honestamente.
+  const HABIT_XP_PER_DAY = 3; // só os 3 primeiros toques do dia num hábito bom rendem XP
+  const SAME_DAY_TODO = 0.5; // tarefa criada e concluída no mesmo dia rende metade
+  const DIFFICULTY_MIN_LEVEL = { easy: 1, medium: 1, hard: 3, epic: 8 }; // missões criadas pela pessoa
+  const DIFFICULTY_ORDER = ['easy', 'medium', 'hard', 'epic'];
+  const OUTGROWN_LEVELS = 6; // missão do Mural muito abaixo do seu nível rende menos…
+  const OUTGROWN_MULT = 0.6; // …para incentivar a próxima da escada
+  const CHALLENGE_MULT = 2; // o desafio do dia vale o dobro
+  const TRIAL_EVERY = 5; // a cada 5 níveis é preciso vencer uma Provação
+  const TRIAL_GOLD = 100;
+  const MAX_ITEMS = 3; // limite de Pergaminhos de Folga guardados
 
   // ---------- Dificuldades (características do avatar) ----------
   // Cada dificuldade real vira uma característica que evolui com as missões
@@ -311,8 +325,29 @@
     return 50 + (level - 1) * 5;
   }
 
+  // Até vencer a Provação o nível fica travado; o XP continua acumulando e
+  // conta inteiro quando ela for vencida.
+  function levelCap(state) {
+    const passed = state.hero.trialsPassed;
+    return passed == null ? Infinity : TRIAL_EVERY * (passed + 1) - 1;
+  }
+
   function heroLevel(state) {
-    return levelFromXp(state.hero.xp);
+    return Math.min(levelFromXp(state.hero.xp), levelCap(state));
+  }
+
+  function heroProgress(state) {
+    const level = heroLevel(state);
+    if (levelFromXp(state.hero.xp) > level) {
+      const needed = xpForLevel(level + 1) - xpForLevel(level);
+      return { level, current: needed, needed, capped: true };
+    }
+    return { ...levelProgress(state.hero.xp), capped: false };
+  }
+
+  function heroTitle(state) {
+    const passed = state.hero.trialsPassed || 0;
+    return CONTENT.TITLES[Math.min(passed, CONTENT.TITLES.length - 1)];
   }
 
   // ---------- Estado ----------
@@ -332,6 +367,10 @@
     return eq;
   }
 
+  function folgaReward() {
+    return { id: uid(), title: 'Pergaminho de Folga', cost: 60, item: 'folga', builtin: true };
+  }
+
   function createState(name, cls, today) {
     const key = today || todayKey();
     const attrs = {};
@@ -348,18 +387,26 @@
         equipment: defaultEquipment(),
         look: null,
         traits: [],
+        trialsPassed: 0,
+        trial: null,
+        items: { folga: 0 },
       },
       quests: [],
       rewards: [
         { id: uid(), title: 'Poção de Vida', cost: 25, heal: 20, builtin: true },
+        folgaReward(),
         { id: uid(), title: 'Um episódio de série', cost: 50 },
         { id: uid(), title: 'Sobremesa favorita', cost: 80 },
       ],
       boss: null,
+      challenge: null,
+      visits: { last: null, streak: 0, best: 0, chestOpened: null },
+      board: { seenLevel: 1 },
+      restDays: [],
       history: {},
       achievements: {},
       log: [],
-      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0, bossesDefeated: 0, bossesSeen: 0 },
+      stats: { completed: 0, goldEarned: 0, rewardsBought: 0, defeats: 0, bestStreak: 0, bossesDefeated: 0, bossesSeen: 0, challenges: 0, chests: 0, trials: 0 },
       lastProcessed: key,
       createdAt: key,
     };
@@ -384,6 +431,19 @@
       state.hero.traits = [];
       state.version = 3;
     }
+    if (state.version === 3) {
+      // Quem já passou dos níveis de Provação não perde nada: elas contam como vencidas.
+      state.hero.trialsPassed = Math.floor(levelFromXp(state.hero.xp) / TRIAL_EVERY);
+      state.hero.trial = null;
+      state.hero.items = { folga: 0 };
+      state.challenge = null;
+      state.visits = { last: null, streak: 0, best: 0, chestOpened: null };
+      state.board = { seenLevel: heroLevel(state) };
+      state.restDays = [];
+      Object.assign(state.stats, { challenges: 0, chests: 0, trials: 0 });
+      if (!state.rewards.some((r) => r.item === 'folga')) state.rewards.splice(1, 0, folgaReward());
+      state.version = 4;
+    }
     return state;
   }
 
@@ -406,6 +466,13 @@
       difficulty: DIFFICULTY[data.difficulty] ? data.difficulty : 'medium',
       createdAt: key,
     };
+    const entry = catalogEntry(data.catalog);
+    if (entry) {
+      quest.catalog = entry.id;
+      quest.level = entry.level;
+    } else if (!data.official) {
+      quest.difficulty = allowedDifficulty(state, quest.difficulty);
+    }
     const trait = activeTrait(state, data.trait);
     if (trait) {
       quest.trait = trait.id;
@@ -426,6 +493,49 @@
     }
     state.quests.push(quest);
     return quest;
+  }
+
+  // Missões criadas pela pessoa não podem ser mais difíceis do que o nível permite.
+  function allowedDifficulty(state, difficulty) {
+    const level = heroLevel(state);
+    let i = DIFFICULTY_ORDER.indexOf(difficulty);
+    while (i > 0 && level < DIFFICULTY_MIN_LEVEL[DIFFICULTY_ORDER[i]]) i--;
+    return DIFFICULTY_ORDER[Math.max(0, i)];
+  }
+
+  // ---------- Mural de Missões ----------
+
+  function catalogEntry(id) {
+    return (id && CONTENT.CATALOG.find((c) => c.id === id)) || null;
+  }
+
+  function hasCatalogQuest(state, id) {
+    return state.quests.some((q) => q.catalog === id);
+  }
+
+  function boardQuests(state) {
+    const level = heroLevel(state);
+    const seen = state.board.seenLevel || 1;
+    return CONTENT.CATALOG.map((c) => ({
+      ...c,
+      unlocked: level >= c.level,
+      accepted: hasCatalogQuest(state, c.id),
+      isNew: level >= c.level && c.level > seen,
+    }));
+  }
+
+  function newBoardCount(state) {
+    return boardQuests(state).filter((c) => c.isNew && !c.accepted).length;
+  }
+
+  function markBoardSeen(state) {
+    state.board.seenLevel = heroLevel(state);
+  }
+
+  function acceptCatalogQuest(state, id, today) {
+    const entry = catalogEntry(id);
+    if (!entry || heroLevel(state) < entry.level || hasCatalogQuest(state, id)) return null;
+    return addQuest(state, { ...entry, catalog: id }, today);
   }
 
   function removeQuest(state, id) {
@@ -502,7 +612,7 @@
     const titles = new Set(state.quests.map((q) => q.title.toLowerCase()));
     return def.quests
       .filter((q) => !titles.has(q.title.toLowerCase()))
-      .map((q) => addQuest(state, { ...q, attr: def.attr, trait: id }, today));
+      .map((q) => addQuest(state, { ...q, attr: def.attr, trait: id, official: true }, today));
   }
 
   function virtueBonus(state, attr) {
@@ -556,16 +666,29 @@
 
   // ---------- Recompensas e dano ----------
 
-  function computeReward(state, quest) {
+  function computeReward(state, quest, today) {
+    const key = today || todayKey();
     const diff = DIFFICULTY[quest.difficulty];
+    if (quest.type === 'habit' && habitCount(quest, key) >= HABIT_XP_PER_DAY) return { xp: 0, gold: 0, reduced: 'capped' };
+    let mult = 1;
+    let reduced = null;
+    if (quest.catalog && heroLevel(state) >= quest.level + OUTGROWN_LEVELS) {
+      mult = OUTGROWN_MULT;
+      reduced = 'outgrown';
+    }
+    if (quest.type === 'todo' && quest.createdAt === key) {
+      mult *= SAME_DAY_TODO;
+      reduced = 'sameDay';
+    }
     const b = bonuses(state);
     const streak = quest.type === 'daily' ? Math.min(quest.streak, STREAK_BONUS_CAP) : 0;
     const streakMult = 1 + streak * STREAK_BONUS_PER_DAY;
     const classMult = CLASSES[state.hero.cls].attr === quest.attr ? 1 + CLASS_BONUS : 1;
     const traitMult = 1 + (activeTrait(state, quest.trait) ? TRAIT_BONUS : 0) + virtueBonus(state, quest.attr);
     return {
-      xp: Math.round(diff.xp * streakMult * classMult * traitMult * (1 + b.xp)),
-      gold: Math.round(diff.gold * streakMult * (1 + b.gold)),
+      xp: Math.round(diff.xp * streakMult * classMult * traitMult * (1 + b.xp) * mult),
+      gold: Math.round(diff.gold * streakMult * (1 + b.gold) * mult),
+      reduced,
     };
   }
 
@@ -586,6 +709,7 @@
       events.newItems = equipNewUnlocks(state, beforeLevel, level);
       events.newItems.forEach((i) => addLog(state, i.icon, `Novo equipamento: ${i.name}!`));
     }
+    if (!hero.trial && levelFromXp(hero.xp) > levelCap(state)) events.trialStarted = startTrial(state);
     if (attr) {
       const attrLevel = levelFromXp(hero.attrs[attr], ATTR_BASE);
       if (attrLevel > beforeAttr) {
@@ -628,6 +752,173 @@
     const before = hero.hp;
     hero.hp = Math.min(max, hero.hp + amount);
     return hero.hp - before;
+  }
+
+  // ---------- Provação ----------
+  // Para passar do nível 4, 9, 14… é preciso ter alguns "dias perfeitos":
+  // todas as diárias do dia cumpridas (ou 3 missões, para quem não tem diárias).
+
+  function startTrial(state, today) {
+    const hero = state.hero;
+    hero.trial = {
+      level: levelCap(state) + 1,
+      need: Math.min(3 + hero.trialsPassed, 7),
+      since: today || state.lastProcessed || todayKey(),
+      days: [],
+    };
+    addLog(state, '🏛️', `Provação do nível ${hero.trial.level}: tenha ${hero.trial.need} dias perfeitos para subir.`);
+    return hero.trial;
+  }
+
+  function perfectDay(state, key) {
+    if (state.restDays.includes(key)) return false;
+    const t = dailyTotals(state, key);
+    if (t.due > 0) return t.done === t.due;
+    return ((state.history[key] && state.history[key].done) || 0) >= 3;
+  }
+
+  function updateTrial(state, key) {
+    const trial = state.hero.trial;
+    if (!trial || key < trial.since) return null;
+    const perfect = perfectDay(state, key);
+    const idx = trial.days.indexOf(key);
+    if (perfect && idx < 0) trial.days.push(key);
+    if (!perfect && idx >= 0) trial.days.splice(idx, 1);
+    if (trial.days.length >= trial.need) return passTrial(state, key);
+    return { progress: trial.days.length, need: trial.need, gained: perfect && idx < 0 };
+  }
+
+  function passTrial(state, key) {
+    const hero = state.hero;
+    const before = heroLevel(state);
+    hero.trialsPassed++;
+    hero.trial = null;
+    hero.gold += TRIAL_GOLD;
+    state.stats.goldEarned += TRIAL_GOLD;
+    state.stats.trials++;
+    const level = heroLevel(state);
+    hero.hp = maxHp(level);
+    const newItems = equipNewUnlocks(state, before, level);
+    addLog(state, '🏛️', `Provação vencida! Agora você é ${heroTitle(state)}, nível ${level}. +${TRIAL_GOLD} ouro.`);
+    newItems.forEach((i) => addLog(state, i.icon, `Novo equipamento: ${i.name}!`));
+    if (levelFromXp(hero.xp) > levelCap(state)) startTrial(state, addDays(key, 1));
+    return { passed: true, level, levelUp: level > before ? level : null, title: heroTitle(state), gold: TRIAL_GOLD, newItems };
+  }
+
+  // ---------- Desafio do dia ----------
+
+  // Sorteio reproduzível: o mesmo dia sorteia o mesmo desafio para o mesmo herói.
+  function seededRandom(seed) {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+    return function () {
+      h = (h + 0x6d2b79f5) | 0;
+      let t = Math.imul(h ^ (h >>> 15), 1 | h);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function pickChallenge(state, key, salt, exclude) {
+    const level = heroLevel(state);
+    const titles = new Set(state.quests.map((q) => q.title.toLowerCase()));
+    const unlocked = CONTENT.CATALOG.filter((c) => c.level <= level && c.type !== 'habit' && c.id !== exclude);
+    let pool = unlocked.filter((c) => !hasCatalogQuest(state, c.id) && !titles.has(c.title.toLowerCase()));
+    if (!pool.length) pool = unlocked;
+    const rng = seededRandom(`${key}|${state.hero.name}|${salt || ''}`);
+    // Metade das vezes, prefere algo ligado aos desafios da pessoa.
+    const active = activeTraits(state).map((t) => t.id);
+    const linked = pool.filter((c) => active.includes(c.trait));
+    if (linked.length && rng() < 0.5) pool = linked;
+    return pool[Math.floor(rng() * pool.length)].id;
+  }
+
+  function ensureChallenge(state, key) {
+    if (state.challenge && state.challenge.key === key) return state.challenge;
+    state.challenge = { key, id: pickChallenge(state, key), done: false, rerolled: false };
+    return state.challenge;
+  }
+
+  function rerollChallenge(state, key) {
+    const c = state.challenge;
+    if (!c || c.key !== key || c.done || c.rerolled) return false;
+    c.id = pickChallenge(state, key, 'troca', c.id);
+    c.rerolled = true;
+    return true;
+  }
+
+  function challengeReward(state) {
+    const entry = catalogEntry(state.challenge && state.challenge.id);
+    if (!entry) return null;
+    const diff = DIFFICULTY[entry.difficulty];
+    const b = bonuses(state);
+    const classMult = CLASSES[state.hero.cls].attr === entry.attr ? 1 + CLASS_BONUS : 1;
+    return {
+      xp: Math.round(diff.xp * CHALLENGE_MULT * classMult * (1 + b.xp)),
+      gold: Math.round(diff.gold * CHALLENGE_MULT * (1 + b.gold)),
+    };
+  }
+
+  function completeChallenge(state, today) {
+    const key = today || todayKey();
+    const c = state.challenge;
+    if (!c || c.key !== key || c.done) return null;
+    const entry = catalogEntry(c.id);
+    const reward = challengeReward(state);
+    c.done = true;
+    const events = grant(state, entry.attr, reward.xp, reward.gold);
+    state.stats.completed++;
+    state.stats.challenges++;
+    historyDay(state, key).done++;
+    addLog(state, '🎲', `Desafio do dia "${entry.title}" concluído: +${reward.xp} XP, +${reward.gold} ouro.`);
+    events.trait = advanceTrait(state, { trait: entry.trait }, reward.xp, key);
+    events.trial = updateTrial(state, key);
+    return rewardResult(state, events, hitBoss(state, reward.xp));
+  }
+
+  // ---------- Baú diário ----------
+
+  function chestTier(streak) {
+    let tier = 0;
+    CONTENT.CHESTS.forEach((c, i) => {
+      if (streak >= c.minStreak) tier = i;
+    });
+    return tier;
+  }
+
+  function registerVisit(state, key) {
+    const v = state.visits;
+    if (v.last === key) return;
+    v.streak = v.last === addDays(key, -1) ? v.streak + 1 : 1;
+    v.best = Math.max(v.best || 0, v.streak);
+    v.last = key;
+  }
+
+  function chestAvailable(state, key) {
+    return state.visits.chestOpened !== (key || todayKey());
+  }
+
+  // Recompensa por voltar: sempre ouro, às vezes XP, cura ou um Pergaminho de Folga.
+  // Quanto mais dias seguidos você abre o app, melhor o baú.
+  function openChest(state, today) {
+    const key = today || todayKey();
+    if (!chestAvailable(state, key)) return null;
+    registerVisit(state, key);
+    state.visits.chestOpened = key;
+    const tier = chestTier(state.visits.streak);
+    const rng = seededRandom(`${key}|${state.hero.name}|bau`);
+    const loot = { tier, chest: CONTENT.CHESTS[tier], gold: [12, 25, 40][tier] + Math.floor(rng() * [8, 15, 25][tier]), xp: 0, healed: 0, folga: 0 };
+    if (rng() < [0.3, 0.5, 0.8][tier]) loot.xp = [10, 20, 35][tier];
+    if (rng() < [0.06, 0.12, 0.25][tier] && state.hero.items.folga < MAX_ITEMS) {
+      loot.folga = 1;
+      state.hero.items.folga++;
+    }
+    loot.healed = heal(state, [5, 10, 20][tier]);
+    loot.events = grant(state, null, loot.xp, loot.gold);
+    state.stats.chests++;
+    addLog(state, loot.chest.icon, `Abriu o ${loot.chest.name}: +${loot.gold} ouro${loot.xp ? `, +${loot.xp} XP` : ''}${loot.folga ? ', um Pergaminho de Folga' : ''}.`);
+    loot.achievements = checkAchievements(state);
+    return loot;
   }
 
   // ---------- Chefe ----------
@@ -708,6 +999,10 @@
       result.levelUp = boss.events.levelUp || result.levelUp;
       result.newItems = (result.newItems || []).concat(boss.events.newItems);
     }
+    if (events.trial && events.trial.passed) {
+      result.levelUp = events.trial.levelUp || result.levelUp;
+      result.newItems = (result.newItems || []).concat(events.trial.newItems);
+    }
     result.achievements = checkAchievements(state);
     return result;
   }
@@ -722,7 +1017,11 @@
         quest.count = 0;
         quest.countDate = key;
       }
+      const habitReward = quest.polarity === 'good' ? computeReward(state, quest, key) : null;
       quest.count++;
+      if (habitReward && habitReward.reduced === 'capped') {
+        return { type: 'capped', count: quest.count };
+      }
       if (quest.polarity === 'bad') {
         const dmg = DIFFICULTY[quest.difficulty].damage;
         const result = damage(state, dmg, quest.title);
@@ -732,12 +1031,13 @@
         if (!result.defeated) addLog(state, '🩸', `Cedeu a "${quest.title}" e perdeu ${result.damage} de vida.`);
         return { type: 'damage', ...result, bossHealed, traitSetback: trait ? dmg * BAD_HABIT_SETBACK : 0, achievements: checkAchievements(state) };
       }
-      const reward = computeReward(state, quest);
+      const reward = habitReward;
       const events = grant(state, quest.attr, reward.xp, reward.gold);
       state.stats.completed++;
       historyDay(state, key).done++;
       addLog(state, '✨', `"${quest.title}": +${reward.xp} XP, +${reward.gold} ouro.`);
       events.trait = advanceTrait(state, quest, reward.xp, key);
+      events.trial = updateTrial(state, key);
       return rewardResult(state, events, hitBoss(state, reward.xp));
     }
 
@@ -752,13 +1052,15 @@
       quest.done = true;
       quest.doneAt = key;
     }
-    const reward = computeReward(state, quest);
+    const reward = computeReward(state, quest, key);
     const events = grant(state, quest.attr, reward.xp, reward.gold);
+    events.reduced = reward.reduced;
     state.stats.completed++;
     historyDay(state, key).done++;
     const streakText = quest.type === 'daily' && quest.streak > 1 ? ` (sequência de ${quest.streak})` : '';
     addLog(state, '✅', `Missão "${quest.title}" concluída${streakText}: +${reward.xp} XP, +${reward.gold} ouro.`);
     events.trait = advanceTrait(state, quest, reward.xp, key);
+    events.trial = updateTrial(state, key);
     const boss = hitBoss(state, reward.xp);
     quest.lastGrant = {
       key,
@@ -792,6 +1094,7 @@
     }
     delete quest.lastGrant;
     state.stats.completed = Math.max(0, state.stats.completed - 1);
+    updateTrial(state, key);
     addLog(state, '↩️', `Desfez "${quest.title}".`);
     return true;
   }
@@ -811,10 +1114,12 @@
     if (!reward) return { ok: false, reason: 'not-found' };
     if (state.hero.gold < reward.cost) return { ok: false, reason: 'gold' };
     if (reward.heal && state.hero.hp >= maxHp(heroLevel(state))) return { ok: false, reason: 'full-hp' };
+    if (reward.item && state.hero.items[reward.item] >= MAX_ITEMS) return { ok: false, reason: 'max-items' };
     state.hero.gold -= reward.cost;
     state.stats.rewardsBought++;
     let healed = 0;
     if (reward.heal) healed = heal(state, reward.heal);
+    if (reward.item) state.hero.items[reward.item]++;
     addLog(state, '🛒', `Comprou "${reward.title}" por ${reward.cost} ouro${healed ? ` (+${healed} vida)` : ''}.`);
     return { ok: true, healed, achievements: checkAchievements(state) };
   }
@@ -824,7 +1129,7 @@
   // Também troca o chefe quando começa uma semana nova.
   function processRollover(state, today) {
     const key = today || todayKey();
-    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0, boss: null };
+    const summary = { days: 0, missed: [], damage: 0, defeated: false, healed: 0, boss: null, rested: [] };
     if (!state.lastProcessed) state.lastProcessed = key;
     if (state.lastProcessed < key) {
       let day = state.lastProcessed;
@@ -836,14 +1141,23 @@
         const entry = historyDay(state, day);
         entry.due = totals.due;
         entry.dailyDone = totals.done;
-        state.quests.forEach((q) => {
-          if (q.type !== 'daily' || q.createdAt > day || !isScheduled(q, day) || isDoneOn(q, day)) return;
-          q.streak = 0;
-          const result = damage(state, DIFFICULTY[q.difficulty].damage, `"${q.title}" esquecida`);
-          summary.missed.push({ title: q.title, day, damage: result.damage });
-          summary.damage += result.damage;
-          if (result.defeated) summary.defeated = true;
-        });
+        const missed = state.quests.filter((q) => q.type === 'daily' && q.createdAt <= day && isScheduled(q, day) && !isDoneOn(q, day));
+        // Um Pergaminho de Folga protege o dia ruim: sem dano e sem perder sequências.
+        if (missed.length && state.hero.items.folga > 0) {
+          state.hero.items.folga--;
+          state.restDays.push(day);
+          if (state.restDays.length > 60) state.restDays.shift();
+          summary.rested.push({ day, count: missed.length });
+          addLog(state, '📜', `Um Pergaminho de Folga protegeu o dia ${day.split('-').reverse().slice(0, 2).join('/')}.`);
+        } else {
+          missed.forEach((q) => {
+            q.streak = 0;
+            const result = damage(state, DIFFICULTY[q.difficulty].damage, `"${q.title}" esquecida`);
+            summary.missed.push({ title: q.title, day, damage: result.damage });
+            summary.damage += result.damage;
+            if (result.defeated) summary.defeated = true;
+          });
+        }
         const restRate = REST_HEAL + bonuses(state).rest;
         summary.healed += heal(state, Math.ceil(maxHp(heroLevel(state)) * restRate));
       }
@@ -860,6 +1174,8 @@
     }
     summary.boss = ensureBoss(state, key);
     if (summary.boss.escaped && summary.boss.escaped.defeated) summary.defeated = true;
+    registerVisit(state, key);
+    ensureChallenge(state, key);
     recordDay(state, key);
     return summary;
   }
@@ -883,6 +1199,10 @@
     { id: 'boss-10', icon: '🎖️', name: 'Flagelo dos Monstros', desc: 'Derrote 10 chefes semanais.', check: (s) => s.stats.bossesDefeated >= 10 },
     { id: 'trait-1', icon: '🌱', name: 'Superação', desc: 'Supere uma das suas dificuldades.', check: (s) => s.hero.traits.some((t) => t.overcome) },
     { id: 'trait-3', icon: '🦋', name: 'Metamorfose', desc: 'Supere três dificuldades.', check: (s) => s.hero.traits.filter((t) => t.overcome).length >= 3 },
+    { id: 'visits-7', icon: '📅', name: 'Fiel ao Reino', desc: 'Abra o app 7 dias seguidos.', check: (s) => (s.visits.best || 0) >= 7 },
+    { id: 'visits-30', icon: '🗓️', name: 'Morador do Reino', desc: 'Abra o app 30 dias seguidos.', check: (s) => (s.visits.best || 0) >= 30 },
+    { id: 'challenge-10', icon: '🎲', name: 'Caçador de Surpresas', desc: 'Conclua 10 desafios do dia.', check: (s) => s.stats.challenges >= 10 },
+    { id: 'trial-1', icon: '🏛️', name: 'Provação Vencida', desc: 'Vença sua primeira Provação.', check: (s) => s.stats.trials >= 1 },
     { id: 'legendary', icon: '✴️', name: 'Equipamento Lendário', desc: 'Equipe um item lendário.', check: (s) => Object.keys(SLOTS).some((slot) => { const i = equippedItem(s, slot); return i && i.tier === TIERS.length - 1; }) },
   ];
 
@@ -908,6 +1228,10 @@
       typeof state.hero.xp === 'number' &&
       state.hero.equipment &&
       Array.isArray(state.hero.traits) &&
+      state.hero.items &&
+      state.visits &&
+      state.board &&
+      Array.isArray(state.restDays) &&
       Array.isArray(state.quests) &&
       Array.isArray(state.rewards) &&
       state.history
@@ -925,6 +1249,12 @@
     TIERS,
     TRAITS,
     TRAIT_STAGES,
+    CATALOG: CONTENT.CATALOG,
+    CHESTS: CONTENT.CHESTS,
+    TITLES: CONTENT.TITLES,
+    DIFFICULTY_MIN_LEVEL,
+    HABIT_XP_PER_DAY,
+    MAX_ITEMS,
     MAX_ACTIVE_TRAITS,
     TRAIT_BONUS,
     EQUIPMENT,
@@ -938,6 +1268,24 @@
     levelProgress,
     maxHp,
     heroLevel,
+    heroProgress,
+    heroTitle,
+    levelCap,
+    allowedDifficulty,
+    boardQuests,
+    newBoardCount,
+    markBoardSeen,
+    acceptCatalogQuest,
+    catalogEntry,
+    perfectDay,
+    updateTrial,
+    ensureChallenge,
+    rerollChallenge,
+    challengeReward,
+    completeChallenge,
+    chestTier,
+    chestAvailable,
+    openChest,
     createState,
     migrate,
     addLog,
